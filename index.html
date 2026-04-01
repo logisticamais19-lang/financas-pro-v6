@@ -1028,7 +1028,29 @@ async function salvarGastoDiario(){
 }
 function salvarCategoria(){const d=getMes(mesAtual);const nome=document.getElementById('nc-cat-nome').value.trim();if(!nome)return toast('Digite o nome da categoria.','danger');d.categorias.push({id:'cat_'+Date.now(),nome,emoji:document.getElementById('nc-cat-emoji').value.trim()||'🏷️',cor:CORES[d.categorias.length%CORES.length],orcamento:Number(String(document.getElementById('nc-cat-orc').value||0).replace(',','.'))||0});saveDB();fecharModal('modal-cat');renderDashboard();toast('Categoria criada!')}
 function editarDiario(id){const d=getMes(mesAtual);const g=d.diarios.find(x=>x.id===id);if(!g)return;filtroCategoria=g.catId;buildCatModal();document.getElementById('md-id').value=id;document.getElementById('md-data').value=g.data;document.getElementById('md-forma').value=g.forma;document.getElementById('md-desc').value=g.desc;document.getElementById('md-valor').value=String(g.valor).replace('.',',');document.getElementById('md-rotulo').value=g.rotulo||'';document.getElementById('md-nota').value=g.nota||'';document.getElementById('diario-title').textContent='Editar Gasto Diário';openModal('modal-diario')}
-function deletarDiario(id){if(!confirm('Excluir este gasto?'))return;const d=getMes(mesAtual);d.diarios=d.diarios.filter(x=>x.id!==id);saveDB();renderDashboard();toast('Gasto diário removido.','warn')}
+async function deletarDiario(id){
+
+  if(!confirm('Excluir este gasto?')) return;
+
+  const d = getMes(mesAtual);
+
+  try{
+
+    await window.fbDeleteDoc(
+      window.fbDoc(window.dbFirebase, "gastos_diarios", id)
+    );
+
+    d.diarios = d.diarios.filter(x => x.id !== id);
+
+    saveDB();
+    renderDashboard();
+    toast('Gasto diário removido.','warn');
+
+  }catch(e){
+    console.error("Erro ao deletar:", e);
+    toast('Erro ao excluir no Firebase.','danger');
+  }
+}
 
 function abrirModalConta(editId){const d=getMes(mesAtual);document.getElementById('conta-title').textContent=editId?'Editar Conta Fixa':'Nova Conta Fixa';document.getElementById('mc-id').value=editId||'';document.getElementById('mc-desc').value='';document.getElementById('mc-emoji').value='💡';document.getElementById('mc-valor').value='';document.getElementById('mc-dia').value='';if(editId){const c=d.contas.find(x=>x.id===editId);if(c){document.getElementById('mc-desc').value=c.descricao;document.getElementById('mc-emoji').value=c.emoji||'💡';document.getElementById('mc-valor').value=String(c.valor).replace('.',',');document.getElementById('mc-dia').value=c.dia}}openModal('modal-conta')}
 async function salvarConta(){
@@ -1383,9 +1405,14 @@ async function sincronizarMesDoFirebase(){
       )
     );
 
-    diariosSnap.forEach(doc => {
-      d.diarios.push(doc.data());
-    });
+   diariosSnap.forEach(docSnap => {
+  const data = docSnap.data();
+
+  d.diarios.push({
+    id: docSnap.id,   // ✅ ESSENCIAL
+    ...data
+  });
+});
 	// 🔹 Buscar Gastos Cartão
 const cartaoSnap = await window.fbGetDocs(
   window.fbQuery(
