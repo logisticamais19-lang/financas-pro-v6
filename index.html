@@ -623,6 +623,13 @@ function renderCards() {
   const grid = document.getElementById('card-grid');
   grid.innerHTML = '';
 
+  // ✅ Se não houver cartões
+  if (!d.cartoes || !d.cartoes.length) {
+    grid.innerHTML =
+      '<div class="panel" style="padding:18px;color:var(--muted)">Nenhum cartão cadastrado.</div>';
+    return;
+  }
+
   d.cartoes.forEach(c => {
 
     const total = (c.gastos || [])
@@ -637,7 +644,6 @@ function renderCards() {
           <td class="act">
             <button class="btn" style="padding:6px 8px"
               onclick="editarGastoCartao(${c.id}, '${g.id}')">✎</button>
-
             <button class="btn" style="padding:6px 8px"
               onclick="deletarGastoCartao(${c.id}, '${g.id}')">✕</button>
           </td>
@@ -645,8 +651,7 @@ function renderCards() {
       `).join('')
       : `
         <tr>
-          <td colspan="4"
-            style="text-align:center;color:var(--muted);padding:16px">
+          <td colspan="4" style="text-align:center;color:var(--muted);padding:16px">
             Sem gastos no cartão.
           </td>
         </tr>
@@ -657,19 +662,16 @@ function renderCards() {
 
         <div class="card-head">
           <div class="card-head-left">
-            <div class="card-icon"
-              style="background:${c.cor}22;color:${c.cor}">
+            <div class="card-icon" style="background:${c.cor}22;color:${c.cor}">
               ${c.emoji || '💳'}
             </div>
-
             <div>
               <div class="card-name">${c.nome}</div>
               <div class="card-meta">
-                ${c.gastos.length} gastos • ${fmt(total)}
+                ${(c.gastos || []).length} gastos • ${fmt(total)}
               </div>
             </div>
           </div>
-
           <div class="badge b-purple">${c.cor}</div>
         </div>
 
@@ -687,8 +689,7 @@ function renderCards() {
           </tbody>
         </table>
 
-        <div style="display:flex;justify-content:space-between;
-                    align-items:center;gap:8px;margin-top:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:12px">
 
           <button class="btn" style="padding:8px 10px"
             onclick="abrirModalGasto(${c.id})">
@@ -700,7 +701,6 @@ function renderCards() {
               onclick="editarCartao(${c.id})">
               Editar
             </button>
-
             <button class="btn" style="padding:8px 10px"
               onclick="deletarCartao(${c.id})">
               Excluir
@@ -714,7 +714,6 @@ function renderCards() {
   });
 
 }
-if(!d.cartoes.length)g.innerHTML='<div class="panel" style="padding:18px;color:var(--muted)">Nenhum cartão cadastrado.</div>'}
 function abrirGerenciarCartoes(){renderCartoesModal();openModal('modal-cartoes')}
 function renderCartoesModal(){const d=getMes(mesAtual);const box=document.getElementById('lista-cartoes-modal');box.innerHTML='';d.cartoes.forEach(c=>{box.innerHTML+=`<div class="fixed-item" style="margin-bottom:8px"><div style="display:flex;align-items:center;gap:10px"><div class="card-icon" style="background:${c.cor}22;color:${c.cor}">${c.emoji||'💳'}</div><div><div style="font-weight:800">${c.nome}</div><div class="tiny">${fmt((c.gastos||[]).reduce((a,x)=>a+Number(x.valor||0),0))}</div></div></div><div style="display:flex;gap:8px"><button class="btn" style="padding:8px 10px" onclick="editarCartao(${c.id})">Editar</button><button class="btn" style="padding:8px 10px" onclick="deletarCartao(${c.id})">Excluir</button></div></div>`})
 if(!d.cartoes.length)box.innerHTML='<div class="tiny" style="padding:12px 0">Sem cartões ainda.</div>'}
