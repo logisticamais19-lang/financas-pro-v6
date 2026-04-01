@@ -618,7 +618,138 @@ function totalMonth(d){const cart=d.cartoes.reduce((a,c)=>a+(c.gastos||[]).reduc
 function categoryTotal(catId,d){return (d.diarios||[]).filter(x=>x.catId===catId).reduce((a,x)=>a+Number(x.valor||0),0)}
 function lastMonths(n=6){const arr=[];for(let i=n-1;i>=0;i--){const dt=new Date(anoAtual,parseInt(mesAtual.split('-')[1])-1-i,1);arr.push(mkKey(dt.getFullYear(),dt.getMonth()))}return arr}
 
-function renderDashboard(){const d=getMes(mesAtual);const t=totalMonth(d);const uso=d.salario?Math.round((t.total/Number(d.salario))*100):0;document.getElementById('k-salario').textContent=fmt(d.salario);document.getElementById('k-gastos').textContent=fmt(t.total);document.getElementById('k-saldo').textContent=fmt(t.saldo);document.getElementById('k-uso').textContent=uso+'%';document.getElementById('k-status').textContent=uso<70?'Seguro':uso<90?'Atenção':'Perigo';document.getElementById('k-status').className='value '+(uso<70?'v-green':uso<90?'v-orange':'v-red');document.getElementById('meta-label').textContent=Number(d.meta||0)+'%';document.getElementById('risk-fill').style.width=Math.min(100,uso)+'%';document.getElementById('risk-mark').style.left=Math.min(100,Number(d.meta||0))+'%';document.getElementById('risk-text').textContent=t.saldo>=0?'Você está com boa margem!':'Você ultrapassou o salário.';document.getElementById('risk-left').textContent=`Meta: ${d.meta||0}% do salário`;document.getElementById('risk-right').textContent=`Saldo estimado: ${fmt(t.saldo)}`;renderCards();renderDaily();renderFixed();renderGraficos();renderHistorico();renderCalendar();renderProjetoAnual();if(usuarioAtual.perfil==='admin')renderAdmin();verificarAlertas()}
+function renderDaily(){
+
+  const d = getMes(mesAtual);
+  const diarios = d.diarios || [];
+  const total = diarios.reduce((a,x)=>a+Number(x.valor||0),0);
+
+  document.getElementById('daily-total').textContent = fmt(total);
+  document.getElementById('daily-count').textContent = diarios.length;
+
+  const fixos = (d.contas||[])
+    .reduce((a,c)=>a+(c.pago?Number(c.valor||0):0),0);
+
+  document.getElementById('daily-day').textContent =
+    fmt(Math.max(0,
+      (Number(d.salario||0) - totalMonth(d).cart - fixos) /
+      Math.max(1,
+        daysInMonth(
+          anoAtual,
+          parseInt(mesAtual.split('-')[1]) - 1
+        ) - today.getDate() + 1
+      )
+    ));
+
+  const cats = d.categorias || [];
+  const catTot = {};
+
+  diarios.forEach(x=>{
+    catTot[x.catId] = (catTot[x.catId]||0) + Number(x.valor||0);
+  });
+
+  document.getElementById('daily-cats').textContent =
+    Object.keys(catTot).length;
+
+  const fbox = document.getElementById('cat-filtros');
+  fbox.innerHTML = '';
+
+  const allBtn = document.createElement('button');
+  allBtn.className = 'pill' + (filtroCategoria==='Todos'?' active':'');
+  allBtn.textContent = 'Todos';
+  allBtn.onclick = ()=>{
+    filtroCategoria = 'Todos';
+    renderDaily();
+  };
+  fbox.appendChild(allBtn);
+
+  cats.forEach(cat=>{
+    const p = document.createElement('button');
+    p.className = 'pill' + (filtroCategoria===cat.id?' active':'');
+    p.textContent = `${cat.emoji} ${cat.nome}`;
+    p.onclick = ()=>{
+      filtroCategoria = cat.id;
+      renderDaily();
+    };
+    fbox.appendChild(p);
+  });
+
+  const add = document.createElement('button');
+  add.className = 'pill';
+  add.style.borderStyle = 'dashed';
+  add.textContent = '+ Categoria';
+  add.onclick = ()=>openModal('modal-cat');
+  fbox.appendChild(add);
+
+  const filtered = filtroCategoria==='Todos'
+    ? diarios
+    : diarios.filter(x=>x.catId===filtroCategoria);
+
+  filtered.sort((a,b)=>(b.data||'').localeCompare(a.data||''));
+
+  const list = document.getElementById('daily-list');
+
+  if(!filtered.length){
+    list.innerHTML =
+      `<div class="panel" style="padding:18px;color:var(--muted)">
+        Nenhum gasto diário cadastrado.
+      </div>`;
+    return;
+  }
+
+  list.innerHTML = filtered.map(x=>{
+
+    const cat = cats.find(c=>c.id===x.catId);
+
+    return `
+      <div class="daily-item">
+
+        <div class="daily-left">
+          <div class="daily-title">
+            ${cat ? cat.emoji+' '+cat.nome : '🏷️'} • ${x.desc}
+          </div>
+
+          <div class="daily-sub">
+            ${x.data||''} • ${x.forma||''}
+            ${x.rotulo ? ` • ${x.rotulo}` : ''}
+          </div>
+
+          ${x.nota
+            ? `<div class="daily-note">${x.nota}</div>`
+            : ''
+          }
+        </div>
+
+        <div style="text-align:right">
+
+          <div class="daily-value">
+            ${fmt(x.valor)}
+          </div>
+
+          <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+
+            <!-- ✅ ID STRING CORRETO -->
+            <button class="btn"
+              style="padding:6px 8px"
+              onclick="editarDiario('${x.id}')">
+              ✎
+            </button>
+
+            <button class="btn"
+              style="padding:6px 8px"
+              onclick="deletarDiario('${x.id}')">
+              ✕
+            </button>
+
+          </div>
+
+        </div>
+
+      </div>
+    `;
+
+  }).join('');
+}
 function renderCards() {
 
   const d = getMes(mesAtual);
