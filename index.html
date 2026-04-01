@@ -443,8 +443,9 @@ canvas{width:100%!important;height:300px!important}
 	getFirestore,
 	collection,
 	addDoc,
-	deleteDoc,   // ✅ ADICIONE ISSO
-	doc,         // ✅ ADICIONE ISSO
+	deleteDoc,
+	updateDoc,	
+	doc,         
 	serverTimestamp,
 	query,
 	where,
@@ -471,6 +472,7 @@ canvas{width:100%!important;height:300px!important}
   window.fbDeleteDoc = deleteDoc;
   window.fbDoc = doc;
   window.fbGetDocs = getDocs;
+  window.fbUpdateDoc = updateDoc;
   
   window.fbQuery = query;
 window.fbWhere = where;
@@ -728,9 +730,9 @@ async function salvarGastoCartao(){
 
   const d = getMes(mesAtual);
   const cid = Number(document.getElementById('mg-cartao').value);
-  console.log("CID selecionado:", cid);
-  const c = d.cartoes.find(x => x.id === cid);
+  const gastoId = document.getElementById('mg-id').value;
 
+  const c = d.cartoes.find(x => x.id === cid);
   if(!c) return toast('Escolha um cartão.','danger');
 
   const desc = document.getElementById('mg-desc').value.trim();
@@ -739,7 +741,10 @@ async function salvarGastoCartao(){
   if(!desc || !valor || valor <= 0)
     return toast('Preencha descrição e valor.','danger');
 
-  const gasto = {
+  const dados = {
+    usuario: usuarioAtual?.username,
+    mes: mesAtual,
+    cId: cid,
     data: document.getElementById('mg-data').value,
     forma: document.getElementById('mg-forma').value,
     desc,
@@ -748,33 +753,45 @@ async function salvarGastoCartao(){
     nota: document.getElementById('mg-nota').value.trim()
   };
 
-	// ✅ Agora salva no Firebase
-	try {
+  try {
 
-  const docRef = await window.fbAddDoc(
-    window.fbCollection(window.dbFirebase, "gastos_cartao"),
-    {
-      usuario: usuarioAtual?.username,
-      mes: mesAtual,
-      cId: cid,
-      ...gasto,
-      criadoEm: window.fbServerTimestamp()
+    if(gastoId){
+
+      await window.fbUpdateDoc(
+        window.fbDoc(window.dbFirebase, "gastos_cartao", gastoId),
+        dados
+      );
+
+      const index = c.gastos.findIndex(x => x.id === gastoId);
+      if(index !== -1){
+        c.gastos[index] = { id: gastoId, ...dados };
+      }
+
+      toast('✅ Gasto atualizado!');
+
+    } else {
+
+      const docRef = await window.fbAddDoc(
+        window.fbCollection(window.dbFirebase, "gastos_cartao"),
+        {
+          ...dados,
+          criadoEm: window.fbServerTimestamp()
+        }
+      );
+
+      c.gastos.push({ id: docRef.id, ...dados });
+
+      toast('✅ Gasto salvo!');
     }
-  );
 
- // ✅ ID oficial agora é o do Firebase
-	gasto.id = docRef.id;
- // ✅ Agora salva local
-	c.gastos.push(gasto);
-	saveDB();
+    saveDB();
+    fecharModal('modal-gasto');
+    renderDashboard();
 
-	} catch(e){
-  console.error("Erro Firebase:", e);
-	}
-
-  fecharModal('modal-gasto');
-  renderDashboard();
-  toast('✅ Gasto salvo!');
+  } catch(e){
+    console.error("Erro Firebase:", e);
+    toast('Erro ao salvar no Firebase','danger');
+  }
 }
 function editarGastoCartao(cid,gid){const d=getMes(mesAtual);const c=d.cartoes.find(x=>x.id===cid);const g=c?.gastos.find(x=>x.id===gid);if(!g)return;abrirModalGasto(cid);document.getElementById('mg-id').value=g.id;document.getElementById('mg-cid').value=cid;document.getElementById('mg-cartao').value=cid;document.getElementById('mg-data').value=g.data||today.toISOString().slice(0,10);document.getElementById('mg-forma').value=g.forma||'Cartão';document.getElementById('mg-desc').value=g.desc||'';document.getElementById('mg-valor').value=String(g.valor||'').replace('.',',');document.getElementById('mg-rotulo').value=g.rotulo||'';document.getElementById('mg-nota').value=g.nota||'';document.getElementById('gasto-title').textContent='Editar Gasto — Cartão'}
 async function deletarGastoCartao(cid, gid){
