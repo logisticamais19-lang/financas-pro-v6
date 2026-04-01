@@ -628,6 +628,7 @@ async function salvarGastoCartao(){
 
   const d = getMes(mesAtual);
   const cid = Number(document.getElementById('mg-cartao').value);
+  console.log("CID selecionado:", cid);
   const c = d.cartoes.find(x => x.id === cid);
 
   if(!c) return toast('Escolha um cartão.','danger');
