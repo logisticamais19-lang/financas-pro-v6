@@ -615,7 +615,61 @@ function editarDiario(id){const d=getMes(mesAtual);const g=d.diarios.find(x=>x.i
 function deletarDiario(id){if(!confirm('Excluir este gasto?'))return;const d=getMes(mesAtual);d.diarios=d.diarios.filter(x=>x.id!==id);saveDB();renderDashboard();toast('Gasto diário removido.','warn')}
 
 function abrirModalConta(editId){const d=getMes(mesAtual);document.getElementById('conta-title').textContent=editId?'Editar Conta Fixa':'Nova Conta Fixa';document.getElementById('mc-id').value=editId||'';document.getElementById('mc-desc').value='';document.getElementById('mc-emoji').value='💡';document.getElementById('mc-valor').value='';document.getElementById('mc-dia').value='';if(editId){const c=d.contas.find(x=>x.id===editId);if(c){document.getElementById('mc-desc').value=c.descricao;document.getElementById('mc-emoji').value=c.emoji||'💡';document.getElementById('mc-valor').value=String(c.valor).replace('.',',');document.getElementById('mc-dia').value=c.dia}}openModal('modal-conta')}
-function salvarConta(){const d=getMes(mesAtual);const desc=document.getElementById('mc-desc').value.trim();const emoji=document.getElementById('mc-emoji').value.trim()||'💡';const valor=Number(String(document.getElementById('mc-valor').value).replace(',','.'));const dia=parseInt(document.getElementById('mc-dia').value,10);if(!desc||!valor||valor<=0||!dia||dia<1||dia>31)return toast('Preencha todos os campos.','danger');const id=Number(document.getElementById('mc-id').value||Date.now());const conta={id,descricao:desc,emoji,valor,dia,pago:false};if(document.getElementById('mc-id').value)d.contas=d.contas.map(x=>x.id===id?{...x,...conta,pago:x.pago}:x);else d.contas.push(conta);saveDB();fecharModal('modal-conta');renderDashboard();toast('✅ Conta salva!')}
+async function salvarConta(){
+
+  const d = getMes(mesAtual);
+
+  const desc = document.getElementById('mc-desc').value.trim();
+  const emoji = document.getElementById('mc-emoji').value.trim() || '💡';
+  const valor = Number(String(document.getElementById('mc-valor').value).replace(',','.'));
+  const dia = parseInt(document.getElementById('mc-dia').value,10);
+
+  if(!desc || !valor || valor<=0 || !dia || dia<1 || dia>31)
+    return toast('Preencha todos os campos.','danger');
+
+  const id = Number(document.getElementById('mc-id').value || Date.now());
+
+  const conta = {
+    id,
+    descricao: desc,
+    emoji,
+    valor,
+    dia,
+    pago: false
+  };
+
+  const editando = !!document.getElementById('mc-id').value;
+
+  if(editando){
+    d.contas = d.contas.map(x =>
+      x.id===id ? { ...x, ...conta, pago:x.pago } : x
+    );
+  } else {
+    d.contas.push(conta);
+  }
+
+  saveDB();
+
+  if(!editando){
+    try{
+      await window.fbAddDoc(
+        window.fbCollection(window.dbFirebase, "contas_fixas"),
+        {
+          usuario: usuarioAtual?.username,
+          mes: mesAtual,
+          ...conta,
+          criadoEm: window.fbServerTimestamp()
+        }
+      );
+    }catch(e){
+      console.error("Erro Firebase:", e);
+    }
+  }
+
+  fecharModal('modal-conta');
+  renderDashboard();
+  toast('✅ Conta salva!');
+}
 function togglePago(id){const d=getMes(mesAtual);const c=d.contas.find(x=>x.id===id);if(!c)return;c.pago=!c.pago;saveDB();renderDashboard()}
 function deletarConta(id){if(!confirm('Excluir esta conta?'))return;const d=getMes(mesAtual);d.contas=d.contas.filter(x=>x.id!==id);saveDB();renderDashboard();toast('Conta removida.','warn')}
 function renderFixed(){const d=getMes(mesAtual);const list=document.getElementById('fixed-list');const total=(d.contas||[]).reduce((a,c)=>a+Number(c.valor||0),0);document.getElementById('fixed-total').textContent=d.contas.length?`Total mensal: ${fmt(total)}`:'Nenhuma conta fixa ainda';const hoje=today.getDate();list.innerHTML=d.contas.length?d.contas.slice().sort((a,b)=>a.dia-b.dia).map(c=>{const dias=c.dia-hoje;let badge='venc-ok',txt=`Dia ${c.dia}`;if(c.pago){badge='v-purple';txt='✓ Pago'}else if(dias<0){badge='v-red';txt='Passou'}else if(dias===0){badge='v-red';txt='Hoje!'}else if(dias<=3){badge='v-orange';txt=`Em ${dias}d`};return`<div class="fixed-item"><div style="display:flex;align-items:center;gap:12px;min-width:0"><div class="card-icon">${c.emoji||'💡'}</div><div style="min-width:0"><div style="font-weight:800">${c.descricao}</div><div class="tiny">Vence todo dia ${c.dia}</div></div></div><div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap;justify-content:flex-end"><span class="badge ${badge==='v-purple'?'b-purple':badge==='v-red'?'b-red':badge==='v-orange'?'b-orange':'b-green'}">${txt}</span><span style="font-weight:900">${fmt(c.valor)}</span><button class="btn" style="padding:6px 8px" onclick="togglePago(${c.id})">${c.pago?'✓':'○'}</button><button class="btn" style="padding:6px 8px" onclick="abrirModalConta(${c.id})">✎</button><button class="btn" style="padding:6px 8px" onclick="deletarConta(${c.id})">✕</button></div></div>`}).join(''):`<div class="panel" style="padding:18px;color:var(--muted)">Nenhuma conta fixa cadastrada.</div>`}
