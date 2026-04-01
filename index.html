@@ -928,7 +928,9 @@ async function sincronizarMesDoFirebase(){
     console.error("Erro ao sincronizar:", e);
   }
 }
-init();
+window.addEventListener('load', () => {
+  init();
+});
 </script>
 <button onclick="testeSalvar()">Testar Firebase</button>
 </body>
