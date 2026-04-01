@@ -653,28 +653,67 @@ async function salvarGastoCartao(){
   c.gastos.push(gasto);
   saveDB();
 
-  // ✅ Agora salva no Firebase
-  try {
-	await window.fbAddDoc(
+	// ✅ Agora salva no Firebase
+	try {
+
+  const docRef = await window.fbAddDoc(
     window.fbCollection(window.dbFirebase, "gastos_cartao"),
-  {
-    usuario: usuarioAtual?.username,
-    mes: mesAtual,
-    cId: cid, // 🔥 ESSA LINHA É A CHAVE
-    ...gasto,
-    criadoEm: window.fbServerTimestamp()
-  }
-);
-  } catch(e){
-    console.error("Erro Firebase:", e);
-  }
+    {
+      usuario: usuarioAtual?.username,
+      mes: mesAtual,
+      cId: cid,
+      ...gasto,
+      criadoEm: window.fbServerTimestamp()
+    }
+  );
+
+  // 🔥 GUARDA O ID DO FIREBASE NO GASTO
+  gasto.firebaseId = docRef.id;
+
+  // salva novamente agora com firebaseId
+  saveDB();
+
+	} catch(e){
+  console.error("Erro Firebase:", e);
+	}
 
   fecharModal('modal-gasto');
   renderDashboard();
   toast('✅ Gasto salvo!');
 }
 function editarGastoCartao(cid,gid){const d=getMes(mesAtual);const c=d.cartoes.find(x=>x.id===cid);const g=c?.gastos.find(x=>x.id===gid);if(!g)return;abrirModalGasto(cid);document.getElementById('mg-id').value=g.id;document.getElementById('mg-cid').value=cid;document.getElementById('mg-cartao').value=cid;document.getElementById('mg-data').value=g.data||today.toISOString().slice(0,10);document.getElementById('mg-forma').value=g.forma||'Cartão';document.getElementById('mg-desc').value=g.desc||'';document.getElementById('mg-valor').value=String(g.valor||'').replace('.',',');document.getElementById('mg-rotulo').value=g.rotulo||'';document.getElementById('mg-nota').value=g.nota||'';document.getElementById('gasto-title').textContent='Editar Gasto — Cartão'}
-function deletarGastoCartao(cid,gid){if(!confirm('Excluir este gasto?'))return;const d=getMes(mesAtual);const c=d.cartoes.find(x=>x.id===cid);if(!c)return;c.gastos=c.gastos.filter(x=>x.id!==gid);saveDB();renderDashboard();toast('Gasto excluído.','warn')}
+async function deletarGastoCartao(cid, gid){
+
+  if(!confirm('Excluir este gasto?')) return;
+
+  const d = getMes(mesAtual);
+  const c = d.cartoes.find(x => x.id === cid);
+  if(!c) return;
+
+  const gasto = c.gastos.find(x => x.id === gid);
+  if(!gasto) return;
+
+  try {
+
+    // ✅ Apaga no Firebase primeiro
+    if(gasto.firebaseId){
+      await window.fbDeleteDoc(
+        window.fbDoc(window.dbFirebase, "gastos_cartao", gasto.firebaseId)
+      );
+    }
+
+    // ✅ Depois remove local
+    c.gastos = c.gastos.filter(x => x.id !== gid);
+
+    saveDB();
+    renderDashboard();
+    toast('Gasto excluído.','warn');
+
+  } catch(e){
+    console.error("Erro ao deletar:", e);
+    toast('Erro ao excluir no Firebase.','danger');
+  }
+}
 
 function abrirModalDiario(editId){const d=getMes(mesAtual);document.getElementById('diario-title').textContent=editId?'Editar Gasto Diário':'Gasto Diário';document.getElementById('md-id').value=editId||'';buildCatModal();document.getElementById('md-data').value=today.toISOString().slice(0,10);document.getElementById('md-forma').value='Dinheiro';document.getElementById('md-desc').value='';document.getElementById('md-valor').value='';document.getElementById('md-rotulo').value='';document.getElementById('md-nota').value='';if(editId){const g=d.diarios.find(x=>x.id===editId);if(g){document.getElementById('md-data').value=g.data;document.getElementById('md-forma').value=g.forma;document.getElementById('md-desc').value=g.desc;document.getElementById('md-valor').value=String(g.valor).replace('.',',');document.getElementById('md-rotulo').value=g.rotulo||'';document.getElementById('md-nota').value=g.nota||'';filtroCategoria=g.catId}}openModal('modal-diario')}
 function buildCatModal(){const d=getMes(mesAtual);const box=document.getElementById('cat-pills-modal');box.innerHTML='';(d.categorias||[]).forEach(cat=>{const b=document.createElement('button');b.className='pill'+(cat.id===filtroCategoria?' active':'');b.textContent=`${cat.emoji} ${cat.nome}`;b.onclick=()=>{filtroCategoria=cat.id;renderCatModalSelection()};box.appendChild(b)});const add=document.createElement('button');add.className='pill';add.style.borderStyle='dashed';add.textContent='+ Nova categoria';add.onclick=()=>{fecharModal('modal-diario');openModal('modal-cat')};box.appendChild(add);renderCatModalSelection()}
