@@ -827,12 +827,15 @@ init();
 </script>
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { 
-    getFirestore, 
-    collection, 
-    addDoc, 
-    serverTimestamp 
-  } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import {
+  getFirestore,
+  collection,
+  addDoc,
+  serverTimestamp,
+  query,
+  where,
+  getDocs
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyAxaGdujUPxmBDQRaPUWdHbNrCTke8aEnY",
@@ -851,6 +854,10 @@ init();
   window.fbAddDoc = addDoc;
   window.fbCollection = collection;
   window.fbServerTimestamp = serverTimestamp;
+  
+  window.fbQuery = query;
+window.fbWhere = where;
+window.fbGetDocs = getDocs;
 </script>
 <button onclick="testeSalvar()">Testar Firebase</button>
 </body>
