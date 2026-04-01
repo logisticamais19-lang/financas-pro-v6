@@ -617,7 +617,103 @@ function categoryTotal(catId,d){return (d.diarios||[]).filter(x=>x.catId===catId
 function lastMonths(n=6){const arr=[];for(let i=n-1;i>=0;i--){const dt=new Date(anoAtual,parseInt(mesAtual.split('-')[1])-1-i,1);arr.push(mkKey(dt.getFullYear(),dt.getMonth()))}return arr}
 
 function renderDashboard(){const d=getMes(mesAtual);const t=totalMonth(d);const uso=d.salario?Math.round((t.total/Number(d.salario))*100):0;document.getElementById('k-salario').textContent=fmt(d.salario);document.getElementById('k-gastos').textContent=fmt(t.total);document.getElementById('k-saldo').textContent=fmt(t.saldo);document.getElementById('k-uso').textContent=uso+'%';document.getElementById('k-status').textContent=uso<70?'Seguro':uso<90?'Atenção':'Perigo';document.getElementById('k-status').className='value '+(uso<70?'v-green':uso<90?'v-orange':'v-red');document.getElementById('meta-label').textContent=Number(d.meta||0)+'%';document.getElementById('risk-fill').style.width=Math.min(100,uso)+'%';document.getElementById('risk-mark').style.left=Math.min(100,Number(d.meta||0))+'%';document.getElementById('risk-text').textContent=t.saldo>=0?'Você está com boa margem!':'Você ultrapassou o salário.';document.getElementById('risk-left').textContent=`Meta: ${d.meta||0}% do salário`;document.getElementById('risk-right').textContent=`Saldo estimado: ${fmt(t.saldo)}`;renderCards();renderDaily();renderFixed();renderGraficos();renderHistorico();renderCalendar();renderProjetoAnual();if(usuarioAtual.perfil==='admin')renderAdmin();verificarAlertas()}
-function renderCards(){const d=getMes(mesAtual);const g=document.getElementById('card-grid');g.innerHTML='';d.cartoes.forEach(c=>{const total=(c.gastos||[]).reduce((a,x)=>a+Number(x.valor||0),0);g.innerHTML+=`<div class="card-item" style="border-color:${c.cor}22"><div class="card-head"><div class="card-head-left"><div class="card-icon" style="background:${c.cor}22;color:${c.cor}">${c.emoji||'💳'}</div><div><div class="card-name">${c.nome}</div><div class="card-meta">${c.gastos.length} gastos • ${fmt(total)}</div></div></div><div class="badge b-purple">${c.cor}</div></div><table class="table"><thead><tr><th>Data</th><th>Descrição</th><th>Valor</th><th></th></tr></thead><tbody>${c.gastos.length?c.gastos.slice().reverse().map(g=>`<tr><td>${g.data||''}</td><td>${g.desc}</td><td>${fmt(g.valor)}</td><td class="act"><button class="btn" style="padding:6px 8px" onclick="editarGastoCartao(${c.id},${g.id})">✎</button><button class="btn" style="padding:6px 8px" onclick="deletarGastoCartao(${c.id},${g.id})">✕</button></td></tr>`).join(''):`<tr><td colspan="4" style="text-align:center;color:var(--muted);padding:16px">Sem gastos no cartão.</td></tr>`}</tbody></table><div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-top:12px"><button class="btn" style="padding:8px 10px" onclick="abrirModalGasto(${c.id})">+ Gasto</button><div style="display:flex;gap:8px"><button class="btn" style="padding:8px 10px" onclick="editarCartao(${c.id})">Editar</button><button class="btn" style="padding:8px 10px" onclick="deletarCartao(${c.id})">Excluir</button></div></div></div>`})
+function renderCards() {
+
+  const d = getMes(mesAtual);
+  const grid = document.getElementById('card-grid');
+  grid.innerHTML = '';
+
+  d.cartoes.forEach(c => {
+
+    const total = (c.gastos || [])
+      .reduce((a, x) => a + Number(x.valor || 0), 0);
+
+    const linhas = c.gastos && c.gastos.length
+      ? c.gastos.slice().reverse().map(g => `
+        <tr>
+          <td>${g.data || ''}</td>
+          <td>${g.desc}</td>
+          <td>${fmt(g.valor)}</td>
+          <td class="act">
+            <button class="btn" style="padding:6px 8px"
+              onclick="editarGastoCartao(${c.id}, '${g.id}')">✎</button>
+
+            <button class="btn" style="padding:6px 8px"
+              onclick="deletarGastoCartao(${c.id}, '${g.id}')">✕</button>
+          </td>
+        </tr>
+      `).join('')
+      : `
+        <tr>
+          <td colspan="4"
+            style="text-align:center;color:var(--muted);padding:16px">
+            Sem gastos no cartão.
+          </td>
+        </tr>
+      `;
+
+    grid.innerHTML += `
+      <div class="card-item" style="border-color:${c.cor}22">
+
+        <div class="card-head">
+          <div class="card-head-left">
+            <div class="card-icon"
+              style="background:${c.cor}22;color:${c.cor}">
+              ${c.emoji || '💳'}
+            </div>
+
+            <div>
+              <div class="card-name">${c.nome}</div>
+              <div class="card-meta">
+                ${c.gastos.length} gastos • ${fmt(total)}
+              </div>
+            </div>
+          </div>
+
+          <div class="badge b-purple">${c.cor}</div>
+        </div>
+
+        <table class="table">
+          <thead>
+            <tr>
+              <th>Data</th>
+              <th>Descrição</th>
+              <th>Valor</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody>
+            ${linhas}
+          </tbody>
+        </table>
+
+        <div style="display:flex;justify-content:space-between;
+                    align-items:center;gap:8px;margin-top:12px">
+
+          <button class="btn" style="padding:8px 10px"
+            onclick="abrirModalGasto(${c.id})">
+            + Gasto
+          </button>
+
+          <div style="display:flex;gap:8px">
+            <button class="btn" style="padding:8px 10px"
+              onclick="editarCartao(${c.id})">
+              Editar
+            </button>
+
+            <button class="btn" style="padding:8px 10px"
+              onclick="deletarCartao(${c.id})">
+              Excluir
+            </button>
+          </div>
+
+        </div>
+      </div>
+    `;
+
+  });
+
+}
 if(!d.cartoes.length)g.innerHTML='<div class="panel" style="padding:18px;color:var(--muted)">Nenhum cartão cadastrado.</div>'}
 function abrirGerenciarCartoes(){renderCartoesModal();openModal('modal-cartoes')}
 function renderCartoesModal(){const d=getMes(mesAtual);const box=document.getElementById('lista-cartoes-modal');box.innerHTML='';d.cartoes.forEach(c=>{box.innerHTML+=`<div class="fixed-item" style="margin-bottom:8px"><div style="display:flex;align-items:center;gap:10px"><div class="card-icon" style="background:${c.cor}22;color:${c.cor}">${c.emoji||'💳'}</div><div><div style="font-weight:800">${c.nome}</div><div class="tiny">${fmt((c.gastos||[]).reduce((a,x)=>a+Number(x.valor||0),0))}</div></div></div><div style="display:flex;gap:8px"><button class="btn" style="padding:8px 10px" onclick="editarCartao(${c.id})">Editar</button><button class="btn" style="padding:8px 10px" onclick="deletarCartao(${c.id})">Excluir</button></div></div>`})
