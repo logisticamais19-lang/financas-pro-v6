@@ -839,10 +839,11 @@ async function salvarGastoDiario(){
   if(!desc || !valor || valor<=0)
     return toast('Preencha descrição e valor.','danger');
 
-  const id = Number(document.getElementById('md-id').value || Date.now());
+  const gastoId = document.getElementById('md-id').value;
 
-  const gasto = {
-    id,
+  const dados = {
+    usuario: usuarioAtual?.username,
+    mes: mesAtual,
     data: document.getElementById('md-data').value,
     forma: document.getElementById('md-forma').value,
     desc,
@@ -852,36 +853,47 @@ async function salvarGastoDiario(){
     catId: cat.id
   };
 
-  const editando = !!document.getElementById('md-id').value;
+  try{
 
-  if(editando){
-    d.diarios = d.diarios.map(x => x.id===id ? gasto : x);
-  } else {
-    d.diarios.push(gasto);
-  }
+    if(gastoId){
 
-  saveDB();
+      // ✅ EDITAR NO FIREBASE
+      await window.fbUpdateDoc(
+        window.fbDoc(window.dbFirebase, "gastos_diarios", gastoId),
+        dados
+      );
 
-  // ✅ Só salva no Firebase quando for novo
-  if(!editando){
-    try{
-      await window.fbAddDoc(
+      const index = d.diarios.findIndex(x => x.id === gastoId);
+      if(index !== -1){
+        d.diarios[index] = { id: gastoId, ...dados };
+      }
+
+      toast('✅ Gasto atualizado!');
+
+    } else {
+
+      // ✅ NOVO
+      const docRef = await window.fbAddDoc(
         window.fbCollection(window.dbFirebase, "gastos_diarios"),
         {
-          usuario: usuarioAtual?.username,
-          mes: mesAtual,
-          ...gasto,
+          ...dados,
           criadoEm: window.fbServerTimestamp()
         }
       );
-    }catch(e){
-      console.error("Erro Firebase:", e);
-    }
-  }
 
-  fecharModal('modal-diario');
-  renderDashboard();
-  toast('✅ Gasto diário salvo!');
+      d.diarios.push({ id: docRef.id, ...dados });
+
+      toast('✅ Gasto salvo!');
+    }
+
+    saveDB();
+    fecharModal('modal-diario');
+    renderDashboard();
+
+  }catch(e){
+    console.error("Erro Firebase:", e);
+    toast('Erro ao salvar no Firebase','danger');
+  }
 }
 function salvarCategoria(){const d=getMes(mesAtual);const nome=document.getElementById('nc-cat-nome').value.trim();if(!nome)return toast('Digite o nome da categoria.','danger');d.categorias.push({id:'cat_'+Date.now(),nome,emoji:document.getElementById('nc-cat-emoji').value.trim()||'🏷️',cor:CORES[d.categorias.length%CORES.length],orcamento:Number(String(document.getElementById('nc-cat-orc').value||0).replace(',','.'))||0});saveDB();fecharModal('modal-cat');renderDashboard();toast('Categoria criada!')}
 function renderDaily(){const d=getMes(mesAtual);const diarios=d.diarios||[];const total=diarios.reduce((a,x)=>a+Number(x.valor||0),0);document.getElementById('daily-total').textContent=fmt(total);document.getElementById('daily-count').textContent=diarios.length;const fixos=(d.contas||[]).reduce((a,c)=>a+(c.pago?Number(c.valor||0):0),0);document.getElementById('daily-day').textContent=fmt(Math.max(0,(Number(d.salario||0)-totalMonth(d).cart-fixos)/Math.max(1,daysInMonth(anoAtual,parseInt(mesAtual.split('-')[1])-1)-today.getDate()+1)));const cats=d.categorias||[];const catTot={};diarios.forEach(x=>catTot[x.catId]=(catTot[x.catId]||0)+Number(x.valor||0));document.getElementById('daily-cats').textContent=Object.keys(catTot).length;const fbox=document.getElementById('cat-filtros');fbox.innerHTML='';const allBtn=document.createElement('button');allBtn.className='pill'+(filtroCategoria==='Todos'?' active':'');allBtn.textContent='Todos';allBtn.onclick=()=>{filtroCategoria='Todos';renderDaily()};fbox.appendChild(allBtn);cats.forEach(cat=>{const p=document.createElement('button');p.className='pill'+(filtroCategoria===cat.id?' active':'');p.textContent=`${cat.emoji} ${cat.nome}`;p.onclick=()=>{filtroCategoria=cat.id;renderDaily()};fbox.appendChild(p)});const add=document.createElement('button');add.className='pill';add.style.borderStyle='dashed';add.textContent='+ Categoria';add.onclick=()=>openModal('modal-cat');fbox.appendChild(add);const filtered=filtroCategoria==='Todos'?diarios:[...diarios.filter(x=>x.catId===filtroCategoria)];filtered.sort((a,b)=>(b.data||'').localeCompare(a.data||''));const list=document.getElementById('daily-list');list.innerHTML=filtered.length?filtered.map(x=>{const cat=cats.find(c=>c.id===x.catId);return`<div class="daily-item"><div class="daily-left"><div class="daily-title">${cat?cat.emoji+' '+cat.nome:'🏷️'} • ${x.desc}</div><div class="daily-sub">${x.data||''} • ${x.forma||''}${x.rotulo?` • ${x.rotulo}`:''}</div>${x.nota?`<div class="daily-note">${x.nota}</div>`:''}</div><div style="text-align:right"><div class="daily-value">${fmt(x.valor)}</div><div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px"><button class="btn" style="padding:6px 8px" onclick="editarDiario(${x.id})">✎</button><button class="btn" style="padding:6px 8px" onclick="deletarDiario(${x.id})">✕</button></div></div></div>`}).join(''):`<div class="panel" style="padding:18px;color:var(--muted)">Nenhum gasto diário cadastrado.</div>`}
