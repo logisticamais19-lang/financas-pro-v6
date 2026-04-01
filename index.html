@@ -1246,7 +1246,65 @@ function adminCriarUsuario(){const u=document.getElementById('nu-user').value.tr
 
 function backupJSON(){const blob=new Blob([JSON.stringify({db,projectDB,usuario:usuarioAtual?.username},null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`FinPro_Backup_${usuarioAtual?.username}_${new Date().toISOString().slice(0,10)}.json`;a.click();toast('Backup gerado!')}
 function restaurarJSON(ev){const file=ev.target.files?.[0];if(!file)return;const r=new FileReader();r.onload=e=>{try{const parsed=JSON.parse(e.target.result);if(parsed.db){db=parsed.db;projectDB=parsed.projectDB||{};saveDB();renderDashboard();toast('Dados restaurados!')}else toast('Arquivo inválido.','danger')}catch{toast('Erro ao ler arquivo.','danger')}};r.readAsText(file);ev.target.value=''}
+function renderDashboard(){
 
+  const d = getMes(mesAtual);
+  const t = totalMonth(d);
+
+  // KPIs principais
+  document.getElementById('k-salario').textContent = fmt(d.salario);
+  document.getElementById('k-gastos').textContent = fmt(t.total);
+  document.getElementById('k-saldo').textContent = fmt(t.saldo);
+
+  const uso = d.salario
+    ? Math.round((t.total / Number(d.salario)) * 100)
+    : 0;
+
+  document.getElementById('k-uso').textContent = uso + '%';
+
+  const statusEl = document.getElementById('k-status');
+  if(t.saldo >= 0){
+    statusEl.textContent = 'Seguro';
+    statusEl.className = 'value v-green';
+  } else {
+    statusEl.textContent = 'Atenção';
+    statusEl.className = 'value v-red';
+  }
+
+  // Meta
+  document.getElementById('meta-label').textContent =
+    `${d.meta}% do salário`;
+
+  const metaValor = (Number(d.salario) * d.meta) / 100;
+  const sobra = t.saldo - metaValor;
+
+  const riskFill = document.getElementById('risk-fill');
+  const riskMark = document.getElementById('risk-mark');
+
+  const perc = d.salario
+    ? Math.min(100, (t.total / Number(d.salario)) * 100)
+    : 0;
+
+  riskFill.style.width = perc + '%';
+  riskMark.style.left = d.meta + '%';
+
+  document.getElementById('risk-left').textContent =
+    `Gasto: ${fmt(t.total)}`;
+
+  document.getElementById('risk-right').textContent =
+    `Meta: ${fmt(metaValor)}`;
+
+  document.getElementById('risk-text').textContent =
+    sobra >= 0
+      ? 'Você está dentro da meta!'
+      : 'Você ultrapassou a meta!';
+
+  // Renderizações principais
+  renderCards();
+  renderDaily();
+  renderFixed();
+  renderGraficos();
+}
 function setSection(n){document.querySelectorAll('.section').forEach(x=>x.classList.remove('active'));document.getElementById('section-'+n)?.classList.add('active');document.querySelectorAll('.tab-btn').forEach(x=>x.classList.remove('active'));document.getElementById('tab-'+n)?.classList.add('active');const btn=document.getElementById('btn-novo');if(n===1){btn.textContent='+ Gasto Diário';btn.onclick=()=>abrirModalDiario();}else if(n===2){btn.textContent='+ Conta Fixa';btn.onclick=()=>abrirModalConta();}else{btn.textContent='+ Novo Gasto';btn.onclick=()=>abrirModalGasto();}}
 function mudarAba(n){setSection(n);if(n===6)renderAdmin();if(n===7)renderProjetoAnual();if(n===5)renderCalendar()}
 function toggleCalc(){document.getElementById('calc').classList.toggle('open')}
