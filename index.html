@@ -439,15 +439,17 @@ canvas{width:100%!important;height:300px!important}
 
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import {
-  getFirestore,
-  collection,
-  addDoc,
-  serverTimestamp,
-  query,
-  where,
-  getDocs
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+	import {
+	getFirestore,
+	collection,
+	addDoc,
+	deleteDoc,   // ✅ ADICIONE ISSO
+	doc,         // ✅ ADICIONE ISSO
+	serverTimestamp,
+	query,
+	where,
+	getDocs
+	} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyAxaGdujUPxmBDQRaPUWdHbNrCTke8aEnY",
@@ -466,6 +468,9 @@ canvas{width:100%!important;height:300px!important}
   window.fbAddDoc = addDoc;
   window.fbCollection = collection;
   window.fbServerTimestamp = serverTimestamp;
+  window.fbDeleteDoc = deleteDoc;
+  window.fbDoc = doc;
+  window.fbGetDocs = getDocs;
   
   window.fbQuery = query;
 window.fbWhere = where;
