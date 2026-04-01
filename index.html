@@ -640,7 +640,6 @@ async function salvarGastoCartao(){
     return toast('Preencha descrição e valor.','danger');
 
   const gasto = {
-    id: Date.now(),
     data: document.getElementById('mg-data').value,
     forma: document.getElementById('mg-forma').value,
     desc,
@@ -648,10 +647,6 @@ async function salvarGastoCartao(){
     rotulo: document.getElementById('mg-rotulo').value,
     nota: document.getElementById('mg-nota').value.trim()
   };
-
-  // ✅ Continua salvando no localStorage
-  c.gastos.push(gasto);
-  saveDB();
 
 	// ✅ Agora salva no Firebase
 	try {
@@ -667,11 +662,11 @@ async function salvarGastoCartao(){
     }
   );
 
-  // 🔥 GUARDA O ID DO FIREBASE NO GASTO
-  gasto.firebaseId = docRef.id;
-
-  // salva novamente agora com firebaseId
-  saveDB();
+ // ✅ ID oficial agora é o do Firebase
+	gasto.id = docRef.id;
+ // ✅ Agora salva local
+	c.gastos.push(gasto);
+	saveDB();
 
 	} catch(e){
   console.error("Erro Firebase:", e);
@@ -695,14 +690,12 @@ async function deletarGastoCartao(cid, gid){
 
   try {
 
-    // ✅ Apaga no Firebase primeiro
-    if(gasto.firebaseId){
-      await window.fbDeleteDoc(
-        window.fbDoc(window.dbFirebase, "gastos_cartao", gasto.firebaseId)
-      );
-    }
+    // ✅ Apaga direto usando o ID oficial
+    await window.fbDeleteDoc(
+      window.fbDoc(window.dbFirebase, "gastos_cartao", gasto.id)
+    );
 
-    // ✅ Depois remove local
+    // ✅ Remove local
     c.gastos = c.gastos.filter(x => x.id !== gid);
 
     saveDB();
