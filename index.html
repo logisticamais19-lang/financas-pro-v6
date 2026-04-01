@@ -554,7 +554,61 @@ function deletarGastoCartao(cid,gid){if(!confirm('Excluir este gasto?'))return;c
 function abrirModalDiario(editId){const d=getMes(mesAtual);document.getElementById('diario-title').textContent=editId?'Editar Gasto Diário':'Gasto Diário';document.getElementById('md-id').value=editId||'';buildCatModal();document.getElementById('md-data').value=today.toISOString().slice(0,10);document.getElementById('md-forma').value='Dinheiro';document.getElementById('md-desc').value='';document.getElementById('md-valor').value='';document.getElementById('md-rotulo').value='';document.getElementById('md-nota').value='';if(editId){const g=d.diarios.find(x=>x.id===editId);if(g){document.getElementById('md-data').value=g.data;document.getElementById('md-forma').value=g.forma;document.getElementById('md-desc').value=g.desc;document.getElementById('md-valor').value=String(g.valor).replace('.',',');document.getElementById('md-rotulo').value=g.rotulo||'';document.getElementById('md-nota').value=g.nota||'';filtroCategoria=g.catId}}openModal('modal-diario')}
 function buildCatModal(){const d=getMes(mesAtual);const box=document.getElementById('cat-pills-modal');box.innerHTML='';(d.categorias||[]).forEach(cat=>{const b=document.createElement('button');b.className='pill'+(cat.id===filtroCategoria?' active':'');b.textContent=`${cat.emoji} ${cat.nome}`;b.onclick=()=>{filtroCategoria=cat.id;renderCatModalSelection()};box.appendChild(b)});const add=document.createElement('button');add.className='pill';add.style.borderStyle='dashed';add.textContent='+ Nova categoria';add.onclick=()=>{fecharModal('modal-diario');openModal('modal-cat')};box.appendChild(add);renderCatModalSelection()}
 function renderCatModalSelection(){const d=getMes(mesAtual);document.querySelectorAll('#cat-pills-modal .pill').forEach(btn=>{const txt=btn.textContent.replace('+ Nova categoria','').trim();const cat=(d.categorias||[]).find(c=>`${c.emoji} ${c.nome}`===txt);btn.classList.toggle('active',cat&&cat.id===filtroCategoria)})}
-function salvarGastoDiario(){const d=getMes(mesAtual);const cat=d.categorias.find(x=>x.id===filtroCategoria)||d.categorias[0];if(!cat)return toast('Crie uma categoria antes.','danger');const desc=document.getElementById('md-desc').value.trim();const valor=Number(String(document.getElementById('md-valor').value).replace(',','.'));if(!desc||!valor||valor<=0)return toast('Preencha descrição e valor.','danger');const id=Number(document.getElementById('md-id').value||Date.now());const gasto={id,data:document.getElementById('md-data').value,forma:document.getElementById('md-forma').value,desc,valor,rotulo:document.getElementById('md-rotulo').value,nota:document.getElementById('md-nota').value.trim(),catId:cat.id};if(document.getElementById('md-id').value){d.diarios=d.diarios.map(x=>x.id===id?gasto:x)}else d.diarios.push(gasto);saveDB();fecharModal('modal-diario');renderDashboard();toast('✅ Gasto diário salvo!')}
+async function salvarGastoDiario(){
+
+  const d = getMes(mesAtual);
+  const cat = d.categorias.find(x=>x.id===filtroCategoria) || d.categorias[0];
+  if(!cat) return toast('Crie uma categoria antes.','danger');
+
+  const desc = document.getElementById('md-desc').value.trim();
+  const valor = Number(String(document.getElementById('md-valor').value).replace(',','.'));
+  if(!desc || !valor || valor<=0)
+    return toast('Preencha descrição e valor.','danger');
+
+  const id = Number(document.getElementById('md-id').value || Date.now());
+
+  const gasto = {
+    id,
+    data: document.getElementById('md-data').value,
+    forma: document.getElementById('md-forma').value,
+    desc,
+    valor,
+    rotulo: document.getElementById('md-rotulo').value,
+    nota: document.getElementById('md-nota').value.trim(),
+    catId: cat.id
+  };
+
+  const editando = !!document.getElementById('md-id').value;
+
+  if(editando){
+    d.diarios = d.diarios.map(x => x.id===id ? gasto : x);
+  } else {
+    d.diarios.push(gasto);
+  }
+
+  saveDB();
+
+  // ✅ Só salva no Firebase quando for novo
+  if(!editando){
+    try{
+      await window.fbAddDoc(
+        window.fbCollection(window.dbFirebase, "gastos_diarios"),
+        {
+          usuario: usuarioAtual?.username,
+          mes: mesAtual,
+          ...gasto,
+          criadoEm: window.fbServerTimestamp()
+        }
+      );
+    }catch(e){
+      console.error("Erro Firebase:", e);
+    }
+  }
+
+  fecharModal('modal-diario');
+  renderDashboard();
+  toast('✅ Gasto diário salvo!');
+}
 function salvarCategoria(){const d=getMes(mesAtual);const nome=document.getElementById('nc-cat-nome').value.trim();if(!nome)return toast('Digite o nome da categoria.','danger');d.categorias.push({id:'cat_'+Date.now(),nome,emoji:document.getElementById('nc-cat-emoji').value.trim()||'🏷️',cor:CORES[d.categorias.length%CORES.length],orcamento:Number(String(document.getElementById('nc-cat-orc').value||0).replace(',','.'))||0});saveDB();fecharModal('modal-cat');renderDashboard();toast('Categoria criada!')}
 function renderDaily(){const d=getMes(mesAtual);const diarios=d.diarios||[];const total=diarios.reduce((a,x)=>a+Number(x.valor||0),0);document.getElementById('daily-total').textContent=fmt(total);document.getElementById('daily-count').textContent=diarios.length;const fixos=(d.contas||[]).reduce((a,c)=>a+(c.pago?Number(c.valor||0):0),0);document.getElementById('daily-day').textContent=fmt(Math.max(0,(Number(d.salario||0)-totalMonth(d).cart-fixos)/Math.max(1,daysInMonth(anoAtual,parseInt(mesAtual.split('-')[1])-1)-today.getDate()+1)));const cats=d.categorias||[];const catTot={};diarios.forEach(x=>catTot[x.catId]=(catTot[x.catId]||0)+Number(x.valor||0));document.getElementById('daily-cats').textContent=Object.keys(catTot).length;const fbox=document.getElementById('cat-filtros');fbox.innerHTML='';const allBtn=document.createElement('button');allBtn.className='pill'+(filtroCategoria==='Todos'?' active':'');allBtn.textContent='Todos';allBtn.onclick=()=>{filtroCategoria='Todos';renderDaily()};fbox.appendChild(allBtn);cats.forEach(cat=>{const p=document.createElement('button');p.className='pill'+(filtroCategoria===cat.id?' active':'');p.textContent=`${cat.emoji} ${cat.nome}`;p.onclick=()=>{filtroCategoria=cat.id;renderDaily()};fbox.appendChild(p)});const add=document.createElement('button');add.className='pill';add.style.borderStyle='dashed';add.textContent='+ Categoria';add.onclick=()=>openModal('modal-cat');fbox.appendChild(add);const filtered=filtroCategoria==='Todos'?diarios:[...diarios.filter(x=>x.catId===filtroCategoria)];filtered.sort((a,b)=>(b.data||'').localeCompare(a.data||''));const list=document.getElementById('daily-list');list.innerHTML=filtered.length?filtered.map(x=>{const cat=cats.find(c=>c.id===x.catId);return`<div class="daily-item"><div class="daily-left"><div class="daily-title">${cat?cat.emoji+' '+cat.nome:'🏷️'} • ${x.desc}</div><div class="daily-sub">${x.data||''} • ${x.forma||''}${x.rotulo?` • ${x.rotulo}`:''}</div>${x.nota?`<div class="daily-note">${x.nota}</div>`:''}</div><div style="text-align:right"><div class="daily-value">${fmt(x.valor)}</div><div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px"><button class="btn" style="padding:6px 8px" onclick="editarDiario(${x.id})">✎</button><button class="btn" style="padding:6px 8px" onclick="deletarDiario(${x.id})">✕</button></div></div></div>`}).join(''):`<div class="panel" style="padding:18px;color:var(--muted)">Nenhum gasto diário cadastrado.</div>`}
 function editarDiario(id){const d=getMes(mesAtual);const g=d.diarios.find(x=>x.id===id);if(!g)return;filtroCategoria=g.catId;buildCatModal();document.getElementById('md-id').value=id;document.getElementById('md-data').value=g.data;document.getElementById('md-forma').value=g.forma;document.getElementById('md-desc').value=g.desc;document.getElementById('md-valor').value=String(g.valor).replace('.',',');document.getElementById('md-rotulo').value=g.rotulo||'';document.getElementById('md-nota').value=g.nota||'';document.getElementById('diario-title').textContent='Editar Gasto Diário';openModal('modal-diario')}
