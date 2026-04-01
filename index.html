@@ -501,7 +501,53 @@ function editarCartao(id){const d=getMes(mesAtual);const c=d.cartoes.find(x=>x.i
 function salvarEditCartao(){const d=getMes(mesAtual);const id=Number(document.getElementById('ec-id').value);const c=d.cartoes.find(x=>x.id===id);if(!c)return;const nome=document.getElementById('ec-nome').value.trim();if(!nome)return toast('Nome obrigatório.','danger');c.emoji=document.getElementById('ec-emoji').value.trim()||'💳';c.nome=nome.toUpperCase();c.cor=document.getElementById('ec-cor').value;saveDB();fecharModal('modal-edit-cartao');renderDashboard();toast('✅ Cartão atualizado!')}
 function deletarCartao(id){const d=getMes(mesAtual);if(!confirm('Excluir este cartão?'))return;d.cartoes=d.cartoes.filter(x=>x.id!==id);saveDB();renderDashboard();toast('Cartão removido.','warn')}
 function abrirModalGasto(cid){const d=getMes(mesAtual);document.getElementById('gasto-title').textContent=cid?`Novo Gasto — ${d.cartoes.find(x=>x.id===cid)?.nome||'Cartão'}`:'Novo Gasto — Cartão';document.getElementById('mg-id').value='';document.getElementById('mg-cid').value=cid||'';const sel=document.getElementById('mg-cartao');sel.innerHTML=d.cartoes.map(c=>`<option value="${c.id}">${c.emoji||'💳'} ${c.nome}</option>`).join('');sel.value=cid||d.cartoes[0]?.id||'';document.getElementById('mg-data').value=today.toISOString().slice(0,10);document.getElementById('mg-forma').value='Cartão';document.getElementById('mg-desc').value='';document.getElementById('mg-valor').value='';document.getElementById('mg-rotulo').value='';document.getElementById('mg-nota').value='';openModal('modal-gasto')}
-function salvarGastoCartao(){const d=getMes(mesAtual);const cid=Number(document.getElementById('mg-cartao').value);const c=d.cartoes.find(x=>x.id===cid);if(!c)return toast('Escolha um cartão.','danger');const desc=document.getElementById('mg-desc').value.trim();const valor=Number(String(document.getElementById('mg-valor').value).replace(',','.'));if(!desc||!valor||valor<=0)return toast('Preencha descrição e valor.','danger');c.gastos.push({id:Date.now(),data:document.getElementById('mg-data').value,forma:document.getElementById('mg-forma').value,desc,valor,rotulo:document.getElementById('mg-rotulo').value,nota:document.getElementById('mg-nota').value.trim()});saveDB();fecharModal('modal-gasto');renderDashboard();toast('✅ Gasto salvo!')}
+async function salvarGastoCartao(){
+
+  const d = getMes(mesAtual);
+  const cid = Number(document.getElementById('mg-cartao').value);
+  const c = d.cartoes.find(x => x.id === cid);
+
+  if(!c) return toast('Escolha um cartão.','danger');
+
+  const desc = document.getElementById('mg-desc').value.trim();
+  const valor = Number(String(document.getElementById('mg-valor').value).replace(',','.'));
+
+  if(!desc || !valor || valor <= 0)
+    return toast('Preencha descrição e valor.','danger');
+
+  const gasto = {
+    id: Date.now(),
+    data: document.getElementById('mg-data').value,
+    forma: document.getElementById('mg-forma').value,
+    desc,
+    valor,
+    rotulo: document.getElementById('mg-rotulo').value,
+    nota: document.getElementById('mg-nota').value.trim()
+  };
+
+  // ✅ Continua salvando no localStorage
+  c.gastos.push(gasto);
+  saveDB();
+
+  // ✅ Agora salva no Firebase
+  try {
+    await window.fbAddDoc(
+      window.fbCollection(window.dbFirebase, "gastos_cartao"),
+      {
+        usuario: usuarioAtual?.username,
+        mes: mesAtual,
+        ...gasto,
+        criadoEm: window.fbServerTimestamp()
+      }
+    );
+  } catch(e){
+    console.error("Erro Firebase:", e);
+  }
+
+  fecharModal('modal-gasto');
+  renderDashboard();
+  toast('✅ Gasto salvo!');
+}
 function editarGastoCartao(cid,gid){const d=getMes(mesAtual);const c=d.cartoes.find(x=>x.id===cid);const g=c?.gastos.find(x=>x.id===gid);if(!g)return;abrirModalGasto(cid);document.getElementById('mg-id').value=g.id;document.getElementById('mg-cid').value=cid;document.getElementById('mg-cartao').value=cid;document.getElementById('mg-data').value=g.data||today.toISOString().slice(0,10);document.getElementById('mg-forma').value=g.forma||'Cartão';document.getElementById('mg-desc').value=g.desc||'';document.getElementById('mg-valor').value=String(g.valor||'').replace('.',',');document.getElementById('mg-rotulo').value=g.rotulo||'';document.getElementById('mg-nota').value=g.nota||'';document.getElementById('gasto-title').textContent='Editar Gasto — Cartão'}
 function deletarGastoCartao(cid,gid){if(!confirm('Excluir este gasto?'))return;const d=getMes(mesAtual);const c=d.cartoes.find(x=>x.id===cid);if(!c)return;c.gastos=c.gastos.filter(x=>x.id!==gid);saveDB();renderDashboard();toast('Gasto excluído.','warn')}
 
@@ -673,7 +719,12 @@ init();
 </script>
 <script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  import { 
+    getFirestore, 
+    collection, 
+    addDoc, 
+    serverTimestamp 
+  } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyAxaGdujUPxmBDQRaPUWdHbNrCTke8aEnY",
@@ -685,21 +736,13 @@ init();
   };
 
   const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app);
+  const dbFirebase = getFirestore(app);
 
-  async function testeSalvar() {
-    try {
-      await addDoc(collection(db, "teste"), {
-        mensagem: "Funcionando!",
-        criadoEm: new Date()
-      });
-      alert("✅ Conectado ao Firebase!");
-    } catch (erro) {
-      alert("❌ Erro: " + erro.message);
-    }
-  }
-
-  window.testeSalvar = testeSalvar;
+  // Tornando acessível no script principal
+  window.dbFirebase = dbFirebase;
+  window.fbAddDoc = addDoc;
+  window.fbCollection = collection;
+  window.fbServerTimestamp = serverTimestamp;
 </script>
 <button onclick="testeSalvar()">Testar Firebase</button>
 </body>
