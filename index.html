@@ -1083,14 +1083,14 @@ const cartaoSnap = await window.fbGetDocs(
   )
 );
 
-cartaoSnap.forEach(doc => {
-  const data = doc.data();
+cartaoSnap.forEach(docSnap => {
+  const data = docSnap.data();
 
   const cartao = d.cartoes.find(c => c.id == data.cId);
 
   if (cartao) {
     cartao.gastos.push({
-      id: data.id,
+      id: docSnap.id,   // ✅ AGORA CORRETO
       data: data.data,
       forma: data.forma,
       desc: data.desc,
