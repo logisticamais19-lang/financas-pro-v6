@@ -437,6 +437,41 @@ canvas{width:100%!important;height:300px!important}
 
 <div id="modal-cat" class="modal-wrap"><div class="modal"><h3>Nova Categoria</h3><div class="fg"><label>Emoji</label><input id="nc-cat-emoji" type="text" maxlength="4" style="text-align:center;font-size:20px"></div><div class="fg"><label>Nome</label><input id="nc-cat-nome" type="text" placeholder="Ex: Lazer, Educação..."></div><div class="fg"><label>Orçamento mensal (R$)</label><input id="nc-cat-orc" type="text" placeholder="Ex: 500,00"></div><div class="modal-actions"><button class="btn-secondary" onclick="fecharModal('modal-cat')">Cancelar</button><button class="btn-save" onclick="salvarCategoria()">Salvar</button></div></div></div>
 
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import {
+  getFirestore,
+  collection,
+  addDoc,
+  serverTimestamp,
+  query,
+  where,
+  getDocs
+} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAxaGdujUPxmBDQRaPUWdHbNrCTke8aEnY",
+    authDomain: "financas-pro-v6-db.firebaseapp.com",
+    projectId: "financas-pro-v6-db",
+    storageBucket: "financas-pro-v6-db.firebasestorage.app",
+    messagingSenderId: "669532845867",
+    appId: "1:669532845867:web:1d9cabbf9675f3400cf76e"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const dbFirebase = getFirestore(app);
+
+  // Tornando acessível no script principal
+  window.dbFirebase = dbFirebase;
+  window.fbAddDoc = addDoc;
+  window.fbCollection = collection;
+  window.fbServerTimestamp = serverTimestamp;
+  
+  window.fbQuery = query;
+window.fbWhere = where;
+window.fbGetDocs = getDocs;
+</script>
+
 <script>
 const USERS_KEY='finpro_users_v6';
 const SESSION_KEY='finpro_session_v6';
@@ -894,40 +929,6 @@ async function sincronizarMesDoFirebase(){
   }
 }
 init();
-</script>
-<script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import {
-  getFirestore,
-  collection,
-  addDoc,
-  serverTimestamp,
-  query,
-  where,
-  getDocs
-} from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
-
-  const firebaseConfig = {
-    apiKey: "AIzaSyAxaGdujUPxmBDQRaPUWdHbNrCTke8aEnY",
-    authDomain: "financas-pro-v6-db.firebaseapp.com",
-    projectId: "financas-pro-v6-db",
-    storageBucket: "financas-pro-v6-db.firebasestorage.app",
-    messagingSenderId: "669532845867",
-    appId: "1:669532845867:web:1d9cabbf9675f3400cf76e"
-  };
-
-  const app = initializeApp(firebaseConfig);
-  const dbFirebase = getFirestore(app);
-
-  // Tornando acessível no script principal
-  window.dbFirebase = dbFirebase;
-  window.fbAddDoc = addDoc;
-  window.fbCollection = collection;
-  window.fbServerTimestamp = serverTimestamp;
-  
-  window.fbQuery = query;
-window.fbWhere = where;
-window.fbGetDocs = getDocs;
 </script>
 <button onclick="testeSalvar()">Testar Firebase</button>
 </body>
