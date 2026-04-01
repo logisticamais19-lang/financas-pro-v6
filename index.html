@@ -471,7 +471,23 @@ function hideErr(id){document.getElementById(id).classList.remove('show')}
 function cadastrar(){const u=document.getElementById('c-user').value.trim().toLowerCase();const p=document.getElementById('c-pass').value;const p2=document.getElementById('c-pass2').value;const nome=document.getElementById('c-nome').value.trim();if(!u)return showErr('login-err','Digite um usuário.');if(!validarSenha(p))return showErr('login-err','Senha fraca: use 6+ caracteres, 1 maiúscula e 1 número.');if(p!==p2)return showErr('login-err','As senhas não conferem.');const users=getUsers();if(users.some(x=>x.username===u))return showErr('login-err','Usuário já existe.');const novo={id:'u_'+Date.now(),username:u,nome:nome||u,senha:hash(p),perfil:'user'};users.push(novo);saveUsers(users);usuarioAtual=novo;localStorage.setItem(SESSION_KEY,novo.id);iniciarApp();}
 function fazerLogin(){const u=document.getElementById('l-user').value.trim().toLowerCase();const p=document.getElementById('l-pass').value;const users=getUsers();const found=users.find(x=>x.username===u&&x.senha===hash(p));if(!found)return showErr('login-err','Usuário ou senha incorretos.');usuarioAtual=found;localStorage.setItem(SESSION_KEY,found.id);iniciarApp();}
 function fazerLogout(){fecharModal('modal-user-menu');usuarioAtual=null;localStorage.removeItem(SESSION_KEY);document.getElementById('app').style.display='none';document.getElementById('login-screen').style.display='flex';document.getElementById('l-user').value='';document.getElementById('l-pass').value='';hideErr('login-err')}
-function iniciarApp(){document.getElementById('login-screen').style.display='none';document.getElementById('app').style.display='block';loadData();if(!db[mesAtual])getMes(mesAtual);renderTopbar();renderDashboard();mudarAba(0);verificarAlertas();}
+async function iniciarApp(){
+
+  document.getElementById('login-screen').style.display='none';
+  document.getElementById('app').style.display='block';
+
+  loadData();
+
+  if(!db[mesAtual]) getMes(mesAtual);
+
+  // 🔥 AQUI
+  await sincronizarMesDoFirebase();
+
+  renderTopbar();
+  renderDashboard();
+  mudarAba(0);
+  verificarAlertas();
+};renderTopbar();renderDashboard();mudarAba(0);verificarAlertas();}
 function renderTopbar(){document.getElementById('user-nome').textContent=usuarioAtual.nome||usuarioAtual.username;document.getElementById('top-sub').textContent=usuarioAtual.perfil==='admin'?'👑 Administrador':'Dashboard pessoal';const av=document.getElementById('user-avatar');av.style.background=avatarColor(usuarioAtual.username);av.textContent=(usuarioAtual.nome||usuarioAtual.username)[0].toUpperCase();document.getElementById('page-title').textContent=`${MONTHS[parseInt(mesAtual.split('-')[1])-1]} ${mesAtual.split('-')[0]}`;const sel=document.getElementById('sel-ano');sel.innerHTML='';for(let y=today.getFullYear()-10;y<=today.getFullYear()+10;y++){const o=document.createElement('option');o.value=y;o.textContent=y;if(y===anoAtual)o.selected=true;sel.appendChild(o)}const months=document.getElementById('months');months.innerHTML='';MONTHS.forEach((m,i)=>{const b=document.createElement('button');b.className='month-btn'+(i===parseInt(mesAtual.split('-')[1])-1?' active':'');b.textContent=m.slice(0,3);b.onclick=()=>mudarMes(i);months.appendChild(b)});const calYear=document.getElementById('cal-year');calYear.innerHTML='';for(let y=today.getFullYear()-10;y<=today.getFullYear()+10;y++){const o=document.createElement('option');o.value=y;o.textContent=y;if(y===calAno)o.selected=true;calYear.appendChild(o)}const projYear=document.getElementById('proj-year');projYear.innerHTML='';for(let y=today.getFullYear()-10;y<=today.getFullYear()+10;y++){const o=document.createElement('option');o.value=y;o.textContent=y;if(y===calAno)o.selected=true;projYear.appendChild(o)}document.getElementById('tab-6').classList.toggle('hidden',usuarioAtual.perfil!=='admin')}
 function mudarAno(){anoAtual=parseInt(document.getElementById('sel-ano').value);mesAtual=mkKey(anoAtual,parseInt(mesAtual.split('-')[1])-1);renderTopbar();renderDashboard()}
 function mudarMes(i){mesAtual=mkKey(anoAtual,i);renderTopbar();renderDashboard()}
@@ -823,6 +839,60 @@ function ca(k){const num=document.getElementById('calc-num');const expr=document
 function exportar(tipo){toast('Exportação Excel pode ser reativada depois na integração completa.','warn')}
 function verificarAlertas(){const d=getMes(mesAtual);const hoje=today.getDate();const urgentes=(d.contas||[]).filter(c=>!c.pago&&c.dia>=hoje&&(c.dia-hoje)<=3);const el=document.getElementById('alerta');if(urgentes.length){document.getElementById('alerta-msg').textContent=urgentes.map(c=>`${c.descricao} vence em ${Math.max(0,c.dia-hoje)} dia(s)`).join(' • ');el.classList.remove('hidden')}else el.classList.add('hidden')}
 function init(){initUsers();const sid=localStorage.getItem(SESSION_KEY);if(sid){const u=getUsers().find(x=>x.id===sid);if(u){usuarioAtual=u;document.getElementById('login-screen').style.display='none';document.getElementById('app').style.display='block';iniciarApp();return}}document.getElementById('login-screen').style.display='flex';document.getElementById('app').style.display='none'}
+async function sincronizarMesDoFirebase(){
+
+  if(!usuarioAtual) return;
+
+  const d = getMes(mesAtual);
+
+  // Limpa dados antes de sincronizar
+  d.contas = [];
+  d.diarios = [];
+
+  try {
+
+    // 🔹 Buscar Contas Fixas
+    const contasSnap = await window.fbGetDocs(
+      window.fbQuery(
+        window.fbCollection(window.dbFirebase, "contas_fixas"),
+        window.fbWhere("usuario", "==", usuarioAtual.username),
+        window.fbWhere("mes", "==", mesAtual)
+      )
+    );
+
+    contasSnap.forEach(doc => {
+      const data = doc.data();
+      d.contas.push({
+        id: data.id,
+        descricao: data.descricao,
+        emoji: data.emoji,
+        valor: data.valor,
+        dia: data.dia,
+        pago: data.pago
+      });
+    });
+
+    // 🔹 Buscar Gastos Diários
+    const diariosSnap = await window.fbGetDocs(
+      window.fbQuery(
+        window.fbCollection(window.dbFirebase, "gastos_diarios"),
+        window.fbWhere("usuario", "==", usuarioAtual.username),
+        window.fbWhere("mes", "==", mesAtual)
+      )
+    );
+
+    diariosSnap.forEach(doc => {
+      d.diarios.push(doc.data());
+    });
+
+    saveDB();
+
+    console.log("✅ Sincronização concluída");
+
+  } catch(e){
+    console.error("Erro ao sincronizar:", e);
+  }
+}
 init();
 </script>
 <script type="module">
