@@ -654,15 +654,16 @@ async function salvarGastoCartao(){
 
   // ✅ Agora salva no Firebase
   try {
-    await window.fbAddDoc(
-      window.fbCollection(window.dbFirebase, "gastos_cartao"),
-      {
-        usuario: usuarioAtual?.username,
-        mes: mesAtual,
-        ...gasto,
-        criadoEm: window.fbServerTimestamp()
-      }
-    );
+	await window.fbAddDoc(
+    window.fbCollection(window.dbFirebase, "gastos_cartao"),
+  {
+    usuario: usuarioAtual?.username,
+    mes: mesAtual,
+    cId: cid, // 🔥 ESSA LINHA É A CHAVE
+    ...gasto,
+    criadoEm: window.fbServerTimestamp()
+  }
+);
   } catch(e){
     console.error("Erro Firebase:", e);
   }
@@ -999,7 +1000,7 @@ async function sincronizarMesDoFirebase(){
   // Limpa dados antes de sincronizar
   d.contas = [];
   d.diarios = [];
-
+  d.cartoes.forEach(c => c.gastos = []);
   try {
 
     // 🔹 Buscar Contas Fixas
@@ -1035,7 +1036,32 @@ async function sincronizarMesDoFirebase(){
     diariosSnap.forEach(doc => {
       d.diarios.push(doc.data());
     });
+	// 🔹 Buscar Gastos Cartão
+const cartaoSnap = await window.fbGetDocs(
+  window.fbQuery(
+    window.fbCollection(window.dbFirebase, "gastos_cartao"),
+    window.fbWhere("usuario", "==", usuarioAtual.username),
+    window.fbWhere("mes", "==", mesAtual)
+  )
+);
 
+cartaoSnap.forEach(doc => {
+  const data = doc.data();
+
+  const cartao = d.cartoes.find(c => c.id == data.cId);
+
+  if (cartao) {
+    cartao.gastos.push({
+      id: data.id,
+      data: data.data,
+      forma: data.forma,
+      desc: data.desc,
+      valor: data.valor,
+      rotulo: data.rotulo,
+      nota: data.nota
+    });
+  }
+});
     saveDB();
 
     console.log("✅ Sincronização concluída");
