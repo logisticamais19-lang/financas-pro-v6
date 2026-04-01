@@ -503,8 +503,80 @@ function atualizarForcaSenha(id,hintId){const s=document.getElementById(id)?.val
 function loginTab(tab){document.getElementById('tab-login').classList.toggle('active',tab==='entrar');document.getElementById('tab-cad').classList.toggle('active',tab==='cadastrar');document.getElementById('form-entrar').classList.toggle('hidden',tab!=='entrar');document.getElementById('form-cadastrar').classList.toggle('hidden',tab!=='cadastrar');hideErr('login-err')}
 function showErr(id,msg){const el=document.getElementById(id);el.textContent=msg;el.classList.add('show')}
 function hideErr(id){document.getElementById(id).classList.remove('show')}
-function cadastrar(){const u=document.getElementById('c-user').value.trim().toLowerCase();const p=document.getElementById('c-pass').value;const p2=document.getElementById('c-pass2').value;const nome=document.getElementById('c-nome').value.trim();if(!u)return showErr('login-err','Digite um usuário.');if(!validarSenha(p))return showErr('login-err','Senha fraca: use 6+ caracteres, 1 maiúscula e 1 número.');if(p!==p2)return showErr('login-err','As senhas não conferem.');const users=getUsers();if(users.some(x=>x.username===u))return showErr('login-err','Usuário já existe.');const novo={id:'u_'+Date.now(),username:u,nome:nome||u,senha:hash(p),perfil:'user'};users.push(novo);saveUsers(users);usuarioAtual=novo;localStorage.setItem(SESSION_KEY,novo.id);iniciarApp();}
-function fazerLogin(){const u=document.getElementById('l-user').value.trim().toLowerCase();const p=document.getElementById('l-pass').value;const users=getUsers();const found=users.find(x=>x.username===u&&x.senha===hash(p));if(!found)return showErr('login-err','Usuário ou senha incorretos.');usuarioAtual=found;localStorage.setItem(SESSION_KEY,found.id);iniciarApp();}
+async function cadastrar() {
+
+  const u = document.getElementById('c-user').value.trim().toLowerCase();
+  const p = document.getElementById('c-pass').value;
+  const p2 = document.getElementById('c-pass2').value;
+  const nome = document.getElementById('c-nome').value.trim();
+
+  if (!u) return showErr('login-err', 'Digite um usuário.');
+  if (!validarSenha(p)) return showErr('login-err', 'Senha fraca: use 6+ caracteres, 1 maiúscula e 1 número.');
+  if (p !== p2) return showErr('login-err', 'As senhas não conferem.');
+
+  // 🔎 Verifica se usuário já existe no Firestore
+  const q = window.fbQuery(
+    window.fbCollection(window.dbFirebase, "usuarios"),
+    window.fbWhere("username", "==", u)
+  );
+
+  const snapshot = await window.fbGetDocs(q);
+
+  if (!snapshot.empty) {
+    return showErr('login-err', 'Usuário já existe.');
+  }
+
+  const novo = {
+    username: u,
+    nome: nome || u,
+    senhaHash: hash(p),
+    perfil: 'user',
+    criadoEm: window.fbServerTimestamp()
+  };
+
+  // ✅ Salva no Firestore
+  await window.fbAddDoc(
+    window.fbCollection(window.dbFirebase, "usuarios"),
+    novo
+  );
+
+  usuarioAtual = novo;
+
+  localStorage.setItem(SESSION_KEY, u);
+
+  iniciarApp();
+}
+async function fazerLogin() {
+
+  const u = document.getElementById('l-user').value.trim().toLowerCase();
+  const p = document.getElementById('l-pass').value;
+
+  // 🔎 Buscar usuário no Firestore
+  const q = window.fbQuery(
+    window.fbCollection(window.dbFirebase, "usuarios"),
+    window.fbWhere("username", "==", u)
+  );
+
+  const snapshot = await window.fbGetDocs(q);
+
+  if (snapshot.empty) {
+    return showErr('login-err', 'Usuário ou senha incorretos.');
+  }
+
+  const found = snapshot.docs[0].data();
+
+  if (found.senhaHash !== hash(p)) {
+    return showErr('login-err', 'Usuário ou senha incorretos.');
+  }
+
+  // ✅ Login correto
+  usuarioAtual = found;
+
+  // salva apenas username na sessão
+  localStorage.setItem(SESSION_KEY, u);
+
+  iniciarApp();
+}
 function fazerLogout(){fecharModal('modal-user-menu');usuarioAtual=null;localStorage.removeItem(SESSION_KEY);document.getElementById('app').style.display='none';document.getElementById('login-screen').style.display='flex';document.getElementById('l-user').value='';document.getElementById('l-pass').value='';hideErr('login-err')}
 async function iniciarApp(){
 
@@ -861,6 +933,21 @@ function salvarProjetoCampo(year,month,field,val){projectDB[year]=projectDB[year
 function copiarProjetoAno(){const year=parseInt(document.getElementById('proj-year').value||today.getFullYear());const src=projectDB[year]||{};const y=year+1;projectDB[y]=copy(src);document.getElementById('proj-year').value=y;renderProjetoAnual();toast(`Plano copiado para ${y}.`)}
 
 function renderAdmin(){const box=document.getElementById('admin-list');const users=getUsers();box.innerHTML=users.map(u=>`<div class="fixed-item" style="margin-top:8px"><div><div style="font-weight:900">${u.nome||u.username}</div><div class="tiny">@${u.username} • ${u.perfil==='admin'?'Administrador':'Usuário'}</div></div><span class="badge ${u.perfil==='admin'?'b-green':'b-purple'}">${u.perfil}</span></div>`).join('')}
+async function buscarUsuario(username) {
+
+  const q = window.fbQuery(
+    window.fbCollection(window.dbFirebase, "usuarios"),
+    window.fbWhere("username", "==", username)
+  );
+
+  const snapshot = await window.fbGetDocs(q);
+
+  if (snapshot.empty) {
+    return null;
+  }
+
+  return snapshot.docs[0].data();
+}
 function abrirModalCriarUsuario(){document.getElementById('nu-user').value='';document.getElementById('nu-nome').value='';document.getElementById('nu-pass').value='';document.getElementById('nu-perfil').value='user';hideErr('nu-err');openModal('modal-criar-usuario')}
 function adminCriarUsuario(){const u=document.getElementById('nu-user').value.trim().toLowerCase();const nome=document.getElementById('nu-nome').value.trim();const p=document.getElementById('nu-pass').value;const perfil=document.getElementById('nu-perfil').value;if(!u)return showErr('nu-err','Digite um usuário.');if(!validarSenha(p))return showErr('nu-err','Senha fraca.');const users=getUsers();if(users.some(x=>x.username===u))return showErr('nu-err','Usuário já existe.');users.push({id:'u_'+Date.now(),username:u,nome:nome||u,senha:hash(p),perfil});saveUsers(users);fecharModal('modal-criar-usuario');renderAdmin();toast('Usuário criado!')}
 
@@ -873,7 +960,36 @@ function toggleCalc(){document.getElementById('calc').classList.toggle('open')}
 function ca(k){const num=document.getElementById('calc-num');const expr=document.getElementById('calc-expr');if(k==='C'){calcState={expr:'',value:'0',op:null,left:null,new:true}}else if(k==='±'){calcState.value=String(-parseFloat(calcState.value||'0'))}else if(k==='%'){calcState.value=String(parseFloat(calcState.value||'0')/100)}else if(['+','-','*','/'].includes(k)){if(calcState.left!==null&&!calcState.new)calcState.value=String(eval(`${calcState.left}${calcState.op}${calcState.value}`));calcState.left=parseFloat(calcState.value||'0');calcState.op=k;calcState.new=true;calcState.expr=String(calcState.left)+' '+k}else if(k==='='){if(calcState.left!==null&&calcState.op){calcState.value=String(eval(`${calcState.left}${calcState.op}${calcState.value||0}`));calcState.expr='';calcState.left=null;calcState.op=null;calcState.new=true}}else{if(calcState.new||calcState.value==='0'){calcState.value=k;calcState.new=false}else calcState.value+=k}num.textContent=Number(calcState.value||0).toLocaleString('pt-BR');expr.textContent=calcState.expr}
 function exportar(tipo){toast('Exportação Excel pode ser reativada depois na integração completa.','warn')}
 function verificarAlertas(){const d=getMes(mesAtual);const hoje=today.getDate();const urgentes=(d.contas||[]).filter(c=>!c.pago&&c.dia>=hoje&&(c.dia-hoje)<=3);const el=document.getElementById('alerta');if(urgentes.length){document.getElementById('alerta-msg').textContent=urgentes.map(c=>`${c.descricao} vence em ${Math.max(0,c.dia-hoje)} dia(s)`).join(' • ');el.classList.remove('hidden')}else el.classList.add('hidden')}
-function init(){initUsers();const sid=localStorage.getItem(SESSION_KEY);if(sid){const u=getUsers().find(x=>x.id===sid);if(u){usuarioAtual=u;document.getElementById('login-screen').style.display='none';document.getElementById('app').style.display='block';iniciarApp();return}}document.getElementById('login-screen').style.display='flex';document.getElementById('app').style.display='none'}
+async function init() {
+
+  const usernameSalvo = localStorage.getItem(SESSION_KEY);
+
+  if (usernameSalvo) {
+
+    // 🔎 Buscar usuário no Firestore
+    const q = window.fbQuery(
+      window.fbCollection(window.dbFirebase, "usuarios"),
+      window.fbWhere("username", "==", usernameSalvo)
+    );
+
+    const snapshot = await window.fbGetDocs(q);
+
+    if (!snapshot.empty) {
+
+      usuarioAtual = snapshot.docs[0].data();
+
+      document.getElementById('login-screen').style.display = 'none';
+      document.getElementById('app').style.display = 'block';
+
+      iniciarApp();
+      return;
+    }
+  }
+
+  // Se não encontrou usuário
+  document.getElementById('login-screen').style.display = 'flex';
+  document.getElementById('app').style.display = 'none';
+}
 async function sincronizarMesDoFirebase(){
 
   if(!usuarioAtual) return;
@@ -932,6 +1048,5 @@ window.addEventListener('load', () => {
   init();
 });
 </script>
-<button onclick="testeSalvar()">Testar Firebase</button>
 </body>
 </html>
