@@ -671,5 +671,36 @@ function verificarAlertas(){const d=getMes(mesAtual);const hoje=today.getDate();
 function init(){initUsers();const sid=localStorage.getItem(SESSION_KEY);if(sid){const u=getUsers().find(x=>x.id===sid);if(u){usuarioAtual=u;document.getElementById('login-screen').style.display='none';document.getElementById('app').style.display='block';iniciarApp();return}}document.getElementById('login-screen').style.display='flex';document.getElementById('app').style.display='none'}
 init();
 </script>
+<script type="module">
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
+  import { getFirestore, collection, addDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+  const firebaseConfig = {
+    apiKey: "AIzaSyAxaGdujUPxmBDQRaPUWdHbNrCTke8aEnY",
+    authDomain: "financas-pro-v6-db.firebaseapp.com",
+    projectId: "financas-pro-v6-db",
+    storageBucket: "financas-pro-v6-db.firebasestorage.app",
+    messagingSenderId: "669532845867",
+    appId: "1:669532845867:web:1d9cabbf9675f3400cf76e"
+  };
+
+  const app = initializeApp(firebaseConfig);
+  const db = getFirestore(app);
+
+  async function testeSalvar() {
+    try {
+      await addDoc(collection(db, "teste"), {
+        mensagem: "Funcionando!",
+        criadoEm: new Date()
+      });
+      alert("✅ Conectado ao Firebase!");
+    } catch (erro) {
+      alert("❌ Erro: " + erro.message);
+    }
+  }
+
+  window.testeSalvar = testeSalvar;
+</script>
+<button onclick="testeSalvar()">Testar Firebase</button>
 </body>
 </html>
