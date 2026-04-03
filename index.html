@@ -1056,89 +1056,89 @@ async function salvarConta(){
 
   const d = getMes(mesAtual);
 
-  const desc = document.getElementById('mc-desc').value.trim();
+  const desc  = document.getElementById('mc-desc').value.trim();
   const emoji = document.getElementById('mc-emoji').value.trim() || '💡';
   const valor = Number(String(document.getElementById('mc-valor').value).replace(',','.'));
-  const dia = parseInt(document.getElementById('mc-dia').value,10);
+  const dia   = parseInt(document.getElementById('mc-dia').value, 10);
 
   if(!desc || !valor || valor<=0 || !dia || dia<1 || dia>31)
     return toast('Preencha todos os campos.','danger');
 
-  const id = Number(document.getElementById('mc-id').value || Date.now());
+  // ✅ ID como STRING — nunca usar Number()
+  const idRaw   = document.getElementById('mc-id').value;
+  const editando = !!idRaw;
 
-  const conta = {
-    id,
-    descricao: desc,
-    emoji,
-    valor,
-    dia,
-    pago: false
-  };
+  if(editando){
 
-const editando = !!document.getElementById('mc-id').value;
+    const dadosUpdate = { descricao: desc, emoji, valor, dia };
 
-if(editando){
-
-  d.contas = d.contas.map(x =>
-    x.id===id ? { ...x, ...conta, pago:x.pago } : x
-  );
-
-  try{
-    await window.fbUpdateDoc(
-      window.fbDoc(window.dbFirebase, "contas_fixas", id),
-      {
-        descricao: desc,
-        emoji,
-        valor,
-        dia,
-        pago: conta.pago
-      }
+    // ✅ Atualiza local mantendo o pago atual
+    d.contas = d.contas.map(x =>
+      x.id === idRaw ? { ...x, ...dadosUpdate } : x
     );
-  }catch(e){
-    console.error("Erro ao atualizar conta:", e);
-  }
 
-} else {
-
-  d.contas.push(conta);
-
-  try{
-    await window.fbAddDoc(
-      window.fbCollection(window.dbFirebase, "contas_fixas"),
-      {
-        usuario: usuarioAtual?.username,
-        mes: mesAtual,
-        ...conta,
-        criadoEm: window.fbServerTimestamp()
-      }
-    );
-  }catch(e){
-    console.error("Erro Firebase:", e);
-  }
-
-}
-
-saveDB();
-
-  if(!editando){
     try{
-      await window.fbAddDoc(
+      await window.fbUpdateDoc(
+        window.fbDoc(window.dbFirebase, "contas_fixas", idRaw), // ✅ string
+        dadosUpdate
+      );
+      toast('✅ Conta atualizada!');
+    }catch(e){
+      console.error("Erro ao atualizar conta:", e);
+      toast('Erro ao atualizar no Firebase.','danger');
+    }
+
+  } else {
+
+    const novaConta = { descricao: desc, emoji, valor, dia, pago: false };
+
+    try{
+      const docRef = await window.fbAddDoc(
         window.fbCollection(window.dbFirebase, "contas_fixas"),
         {
           usuario: usuarioAtual?.username,
           mes: mesAtual,
-          ...conta,
+          ...novaConta,
           criadoEm: window.fbServerTimestamp()
         }
       );
+
+      // ✅ ID do Firebase como string
+      d.contas.push({ id: docRef.id, ...novaConta });
+
+      toast('✅ Conta salva!');
     }catch(e){
       console.error("Erro Firebase:", e);
+      toast('Erro ao salvar no Firebase.','danger');
+      return;
     }
   }
 
+  saveDB();
   fecharModal('modal-conta');
   renderDashboard();
-  toast('✅ Conta salva!');
+}
+
+async function deletarConta(id){
+  if(!confirm('Excluir esta conta?')) return;
+
+  const d = getMes(mesAtual);
+
+  try{
+    // ✅ Apaga no Firebase
+    await window.fbDeleteDoc(
+      window.fbDoc(window.dbFirebase, "contas_fixas", id)
+    );
+
+    d.contas = d.contas.filter(x => x.id !== id);
+    saveDB();
+    renderDashboard();
+    toast('Conta removida.','warn');
+
+  }catch(e){
+    console.error("Erro ao deletar conta:", e);
+    toast('Erro ao excluir no Firebase.','danger');
+  }
 }
 function togglePago(id){const d=getMes(mesAtual);const c=d.contas.find(x=>x.id===id);if(!c)return;c.pago=!c.pago;saveDB();renderDashboard()}
 function deletarConta(id){if(!confirm('Excluir esta conta?'))return;const d=getMes(mesAtual);d.contas=d.contas.filter(x=>x.id!==id);saveDB();renderDashboard();toast('Conta removida.','warn')}
