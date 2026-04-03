@@ -1150,7 +1150,7 @@ async function deletarConta(id){
 }
 
 function togglePago(id){const d=getMes(mesAtual);const c=d.contas.find(x=>x.id===id);if(!c)return;c.pago=!c.pago;saveDB();renderDashboard()}
-function deletarConta(id){if(!confirm('Excluir esta conta?'))return;const d=getMes(mesAtual);d.contas=d.contas.filter(x=>x.id!==id);saveDB();renderDashboard();toast('Conta removida.','warn')}
+
 function renderFixed(){
 
   const d = getMes(mesAtual);
