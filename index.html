@@ -1050,7 +1050,7 @@ async function deletarDiario(id){
     console.error("Erro ao deletar:", e);
     toast('Erro ao excluir no Firebase.','danger');
   }
-
+}
 function abrirModalConta(editId){const d=getMes(mesAtual);document.getElementById('conta-title').textContent=editId?'Editar Conta Fixa':'Nova Conta Fixa';document.getElementById('mc-id').value=editId||'';document.getElementById('mc-desc').value='';document.getElementById('mc-emoji').value='💡';document.getElementById('mc-valor').value='';document.getElementById('mc-dia').value='';if(editId){const c=d.contas.find(x=>x.id===editId);if(c){document.getElementById('mc-desc').value=c.descricao;document.getElementById('mc-emoji').value=c.emoji||'💡';document.getElementById('mc-valor').value=String(c.valor).replace('.',',');document.getElementById('mc-dia').value=c.dia}}openModal('modal-conta')}
 async function salvarConta(){
 
@@ -1442,13 +1442,14 @@ async function sincronizarMesDoFirebase(){
 
   const d = getMes(mesAtual);
 
-  // Limpa dados antes de sincronizar
+  // Limpa dados locais antes de sincronizar
   d.contas = [];
   d.diarios = [];
   d.cartoes.forEach(c => c.gastos = []);
+
   try {
 
-    // 🔹 Buscar Contas Fixas
+    // 🔹 CONTAS FIXAS
     const contasSnap = await window.fbGetDocs(
       window.fbQuery(
         window.fbCollection(window.dbFirebase, "contas_fixas"),
@@ -1457,8 +1458,8 @@ async function sincronizarMesDoFirebase(){
       )
     );
 
-    contasSnap.forEach(doc => {
-      const data = doc.data();
+    contasSnap.forEach(docSnap => {
+      const data = docSnap.data();
       d.contas.push({
         id: data.id,
         descricao: data.descricao,
@@ -1469,57 +1470,56 @@ async function sincronizarMesDoFirebase(){
       });
     });
 
-  // 🔹 Buscar Gastos Diários
-const diariosSnap = await window.fbGetDocs(
-  window.fbQuery(
-    window.fbCollection(window.dbFirebase, "gastos_diarios"),
-    window.fbWhere("usuario", "==", usuarioAtual.username),
-    window.fbWhere("mes", "==", mesAtual)
-  )
-);
+    // 🔹 GASTOS DIÁRIOS
+    const diariosSnap = await window.fbGetDocs(
+      window.fbQuery(
+        window.fbCollection(window.dbFirebase, "gastos_diarios"),
+        window.fbWhere("usuario", "==", usuarioAtual.username),
+        window.fbWhere("mes", "==", mesAtual)
+      )
+    );
 
-diariosSnap.forEach(docSnap => {
-  const data = docSnap.data();
-
-  d.diarios.push({
-    id: docSnap.id,
-    ...data
-  });
-});
-
-  const data = docSnap.data();
-
-  d.diarios.push({
-    id: docSnap.id,   // ✅ ESSENCIAL
-    ...data
-  });
-});
-	// 🔹 Buscar Gastos Cartão
-const cartaoSnap = await window.fbGetDocs(
-  window.fbQuery(
-    window.fbCollection(window.dbFirebase, "gastos_cartao"),
-    window.fbWhere("usuario", "==", usuarioAtual.username),
-    window.fbWhere("mes", "==", mesAtual)
-  )
-);
-
-cartaoSnap.forEach(docSnap => {
-  const data = docSnap.data();
-
-  const cartao = d.cartoes.find(c => c.id == data.cId);
-
-  if (cartao) {
-    cartao.gastos.push({
-      id: docSnap.id,   // ✅ AGORA CORRETO
-      data: data.data,
-      forma: data.forma,
-      desc: data.desc,
-      valor: data.valor,
-      rotulo: data.rotulo,
-      nota: data.nota
+    diariosSnap.forEach(docSnap => {
+      const data = docSnap.data();
+      d.diarios.push({
+        id: docSnap.id,
+        ...data
+      });
     });
+
+    // 🔹 GASTOS CARTÃO
+    const cartaoSnap = await window.fbGetDocs(
+      window.fbQuery(
+        window.fbCollection(window.dbFirebase, "gastos_cartao"),
+        window.fbWhere("usuario", "==", usuarioAtual.username),
+        window.fbWhere("mes", "==", mesAtual)
+      )
+    );
+
+    cartaoSnap.forEach(docSnap => {
+      const data = docSnap.data();
+      const cartao = d.cartoes.find(c => c.id == data.cId);
+
+      if(cartao){
+        cartao.gastos.push({
+          id: docSnap.id,
+          data: data.data,
+          forma: data.forma,
+          desc: data.desc,
+          valor: data.valor,
+          rotulo: data.rotulo,
+          nota: data.nota
+        });
+      }
+    });
+
+    saveDB();
+    console.log("✅ Sincronização concluída");
+
+  } catch(e){
+    console.error("Erro ao sincronizar:", e);
   }
-});
+}
     saveDB();
 
     console.log("✅ Sincronização concluída");
