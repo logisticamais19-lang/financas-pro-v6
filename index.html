@@ -1027,8 +1027,7 @@ canvas { width: 100% !important; height: 260px !important; }
           <div class="risk-meta-label">Meta de economia</div>
           <div class="risk-value-row">
             <span id="meta-label" class="risk-val">—</span>
-            <button class="btn" style="padding:5px 10px;font-size:11px" onclick="editarMeta()">✏ Editar</button>
-          </div>
+		<button class="btn" style="padding:5px 10px;font-size:11px" onclick="editarMetaEconomia()">✏ Editar</button>          </div>
         </div>
         <div style="text-align:right">
           <div class="risk-meta-label">Margem</div>
@@ -1548,35 +1547,47 @@ canvas { width: 100% !important; height: 260px !important; }
 <!-- =====================================================
      FIREBASE
 ===================================================== -->
+<!-- =====================================================
+     FIREBASE
+===================================================== -->
 <script type="module">
-  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
-  import { getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, setDoc, getDoc, serverTimestamp, query, where, getDocs }
-    from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+  try {
+    const { initializeApp } = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js");
+    const { getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, setDoc, getDoc, serverTimestamp, query, where, getDocs }
+      = await import("https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js");
 
-  const firebaseConfig = {
-    apiKey: "AIzaSyAxaGdujUPxmBDQRaPUWdHbNrCTke8aEnY",
-    authDomain: "financas-pro-v6-db.firebaseapp.com",
-    projectId: "financas-pro-v6-db",
-    storageBucket: "financas-pro-v6-db.firebasestorage.app",
-    messagingSenderId: "669532845867",
-    appId: "1:669532845867:web:1d9cabbf9675f3400cf76e"
-  };
+    const firebaseConfig = {
+      apiKey: "AIzaSyAxaGdujUPxmBDQRaPUWdHbNrCTke8aEnY",
+      authDomain: "financas-pro-v6-db.firebaseapp.com",
+      projectId: "financas-pro-v6-db",
+      storageBucket: "financas-pro-v6-db.firebasestorage.app",
+      messagingSenderId: "669532845867",
+      appId: "1:669532845867:web:1d9cabbf9675f3400cf76e"
+    };
 
-  const app = initializeApp(firebaseConfig);
-  const db  = getFirestore(app);
+    const app = initializeApp(firebaseConfig);
+    const db  = getFirestore(app);
 
-  window.dbFirebase        = db;
-  window.fbAddDoc          = addDoc;
-  window.fbCollection      = collection;
-  window.fbServerTimestamp = serverTimestamp;
-  window.fbDeleteDoc       = deleteDoc;
-  window.fbDoc             = doc;
-  window.fbGetDocs         = getDocs;
-  window.fbUpdateDoc       = updateDoc;
-  window.fbSetDoc          = setDoc;
-  window.fbGetDoc          = getDoc;
-  window.fbQuery           = query;
-  window.fbWhere           = where;
+    window.dbFirebase       = db;
+    window.fbAddDoc         = addDoc;
+    window.fbCollection     = collection;
+    window.fbServerTimestamp = serverTimestamp;
+    window.fbDeleteDoc      = deleteDoc;
+    window.fbDoc            = doc;
+    window.fbGetDocs        = getDocs;
+    window.fbUpdateDoc      = updateDoc;
+    window.fbSetDoc         = setDoc;
+    window.fbGetDoc         = getDoc;
+    window.fbQuery          = query;
+    window.fbWhere          = where;
+    window.firebaseReady    = true;
+
+    console.log('✅ Firebase conectado com sucesso');
+  } catch(e) {
+    console.warn('⚠️ Firebase não disponível:', e.message);
+    window.firebaseReady = false;
+    window.dbFirebase    = null;
+  }
 </script>
 
 <!-- =====================================================
@@ -2057,14 +2068,45 @@ function atualizarForcaSenha(inputId, barId, hintId) {
   if(hint) { hint.textContent = labels[pts-1]||labels[0]; hint.style.color = cores[pts-1]||cores[0]; }
 }
 
-function loginTab(tab) {
-  ['entrar','cadastrar'].forEach(t => {
-    document.getElementById('tab-'+t).classList.toggle('active', t===tab);
-    document.getElementById('form-'+t).classList.toggle('hidden', t!==tab);
-  });
-  showErr('login-err','');
-}
+async function cadastrar() {
+  const u    = document.getElementById('c-user').value.trim().toLowerCase();
+  const p    = document.getElementById('c-pass').value;
+  const p2   = document.getElementById('c-pass2').value;
+  const nome = document.getElementById('c-nome').value.trim();
+  if(!u)              return showErr('login-err', 'Digite um usuário.');
+  if(!validarSenha(p)) return showErr('login-err', 'Senha fraca: 6+ chars, 1 maiúscula, 1 número.');
+  if(p !== p2)        return showErr('login-err', 'As senhas não conferem.');
 
+  const fbOk = await waitFirebase();
+  if(!fbOk || !window.dbFirebase) {
+    return showErr('login-err',
+      'Sem conexão com o Firebase. Verifique:\n' +
+      '• Domínio autorizado no Firebase Console\n' +
+      '• Ad-blocker desativado para este site');
+  }
+
+  try {
+    const snap = await window.fbGetDocs(
+      window.fbQuery(
+        window.fbCollection(window.dbFirebase, 'usuarios'),
+        window.fbWhere('username', '==', u)
+      )
+    );
+    if(!snap.empty) return showErr('login-err', 'Usuário já existe.');
+    const senhaHash = await sha256(p);
+    const novo = {
+      username: u, nome: nome || u, senhaHash,
+      perfil: 'user', criadoEm: window.fbServerTimestamp(), v: 2
+    };
+    await window.fbAddDoc(window.fbCollection(window.dbFirebase, 'usuarios'), novo);
+    usuarioAtual = { ...novo, senhaHash };
+    localStorage.setItem(SESSION_KEY, u);
+    iniciarApp();
+    mostrarOnboarding();
+  } catch(e) {
+    showErr('login-err', 'Erro ao criar conta: ' + e.message);
+  }
+}
 function showErr(id, msg) {
   const el = document.getElementById(id); if(!el) return;
   el.textContent = msg;
@@ -2098,66 +2140,58 @@ function iniciarLockout() {
 
 async function waitFirebase() {
   return new Promise(res => {
-    if(window.dbFirebase) { res(); return; }
-    const t = setInterval(() => { if(window.dbFirebase){ clearInterval(t); res(); }}, 150);
-    setTimeout(() => { clearInterval(t); res(); }, 5000); // timeout de 5s
+    if(window.firebaseReady === true) { res(true); return; }
+    if(window.firebaseReady === false) { res(false); return; }
+    let elapsed = 0;
+    const t = setInterval(() => {
+      elapsed += 150;
+      if(window.firebaseReady === true)  { clearInterval(t); res(true); return; }
+      if(window.firebaseReady === false)  { clearInterval(t); res(false); return; }
+      if(elapsed >= 5000)                 { clearInterval(t); res(false); return; }
+    }, 150);
   });
 }
-
-async function cadastrar() {
-  const u    = document.getElementById('c-user').value.trim().toLowerCase();
-  const p    = document.getElementById('c-pass').value;
-  const p2   = document.getElementById('c-pass2').value;
-  const nome = document.getElementById('c-nome').value.trim();
-  if(!u)              return showErr('login-err','Digite um usuário.');
-  if(!validarSenha(p)) return showErr('login-err','Senha fraca: 6+ chars, 1 maiúscula, 1 número.');
-  if(p !== p2)        return showErr('login-err','As senhas não conferem.');
-  await waitFirebase();
-  if(!window.dbFirebase) return showErr('login-err','Sem conexão com o servidor. Verifique o Firebase.');
-  try {
-    const snap = await window.fbGetDocs(window.fbQuery(window.fbCollection(window.dbFirebase,'usuarios'),window.fbWhere('username','==',u)));
-    if(!snap.empty) return showErr('login-err','Usuário já existe.');
-    const senhaHash = await sha256(p);
-    const novo = {username:u, nome:nome||u, senhaHash, perfil:'user', criadoEm:window.fbServerTimestamp(), v:2};
-    await window.fbAddDoc(window.fbCollection(window.dbFirebase,'usuarios'), novo);
-    usuarioAtual = {...novo, senhaHash};
-    localStorage.setItem(SESSION_KEY, u);
-    iniciarApp();
-    mostrarOnboarding();
-  } catch(e) {
-    showErr('login-err','Erro ao criar conta: '+e.message);
-  }
-}
-
 async function fazerLogin() {
   if(checkLockout()) return;
   const u = document.getElementById('l-user').value.trim().toLowerCase();
   const p = document.getElementById('l-pass').value;
-  if(!u||!p) return showErr('login-err','Preencha usuário e senha.');
-  await waitFirebase();
-  if(!window.dbFirebase) return showErr('login-err','Sem conexão com servidor. Verifique se o domínio está autorizado no Firebase Console.');
+  if(!u || !p) return showErr('login-err', 'Preencha usuário e senha.');
+
+  const fbOk = await waitFirebase();
+  if(!fbOk || !window.dbFirebase) {
+    return showErr('login-err',
+      'Sem conexão com o servidor Firebase. Possíveis causas:\n' +
+      '• Domínio não autorizado no Firebase Console\n' +
+      '• Ad-blocker bloqueando requisições\n' +
+      '• Sem internet');
+  }
+
   try {
-    const snap = await window.fbGetDocs(window.fbQuery(window.fbCollection(window.dbFirebase,'usuarios'),window.fbWhere('username','==',u)));
+    const snap = await window.fbGetDocs(
+      window.fbQuery(
+        window.fbCollection(window.dbFirebase, 'usuarios'),
+        window.fbWhere('username', '==', u)
+      )
+    );
     if(snap.empty) {
       loginAttempts++;
       if(loginAttempts >= 5) iniciarLockout();
-      return showErr('login-err','Usuário ou senha incorretos.');
+      return showErr('login-err', 'Usuário ou senha incorretos.');
     }
-    const found  = snap.docs[0].data();
-    const pHash  = await sha256(p);
+    const found = snap.docs[0].data();
+    const pHash = await sha256(p);
     const pHashLeg = hashLegacy(p);
-    // Aceita hash SHA-256 (v2) ou legado
     if(found.senhaHash !== pHash && found.senhaHash !== pHashLeg) {
       loginAttempts++;
       if(loginAttempts >= 5) iniciarLockout();
-      return showErr('login-err','Usuário ou senha incorretos.');
+      return showErr('login-err', 'Usuário ou senha incorretos.');
     }
     loginAttempts = 0;
     usuarioAtual = found;
     localStorage.setItem(SESSION_KEY, u);
     iniciarApp();
   } catch(e) {
-    showErr('login-err','Erro de conexão: '+e.message);
+    showErr('login-err', 'Erro de conexão: ' + e.message);
   }
 }
 
@@ -2332,8 +2366,8 @@ function renderAll() {
   const d   = getMes(mesAtual);
   const t   = totalMonth(d);
   const mi  = parseInt(mesAtual.split('-')[1]) - 1;
-  const sal = Number(d.salario||0);
-  const uso = sal > 0 ? (t.total/sal*100) : 0;
+  const sal = Number(d.salario || 0);
+  const uso = sal > 0 ? (t.total / sal * 100) : 0;
 
   document.getElementById('page-title').textContent = MONTHS[mi] + ' ' + anoAtual;
 
@@ -2341,38 +2375,38 @@ function renderAll() {
   document.getElementById('k-salario').textContent = fmt(sal);
   document.getElementById('k-gastos').textContent  = fmt(t.total);
   document.getElementById('k-saldo').textContent   = fmt(t.saldo);
-  document.getElementById('k-uso').textContent     = uso.toFixed(1)+'%';
+  document.getElementById('k-uso').textContent     = uso.toFixed(1) + '%';
 
   const st = document.getElementById('k-status');
-  if(uso>100) { st.textContent='🔴 Estourou'; st.className='kpi-value v-red'; }
-  else if(uso>80) { st.textContent='🟠 Atenção'; st.className='kpi-value v-orange'; }
-  else if(uso>60) { st.textContent='🟡 Cuidado'; st.className='kpi-value v-yellow'; }
-  else { st.textContent='🟢 Seguro'; st.className='kpi-value v-green'; }
+  if(uso > 100)     { st.textContent = '🔴 Estourou'; st.className = 'kpi-value v-red'; }
+  else if(uso > 80) { st.textContent = '🟠 Atenção';  st.className = 'kpi-value v-orange'; }
+  else if(uso > 60) { st.textContent = '🟡 Cuidado';  st.className = 'kpi-value v-yellow'; }
+  else              { st.textContent = '🟢 Seguro';   st.className = 'kpi-value v-green'; }
 
   // Barra de risco
-  const meta    = Number(d.meta||20);
-  const metaVal = sal * (meta/100);
+  const meta    = Number(d.meta || 20);
+  const metaVal = sal * (meta / 100);
   const lim     = sal - metaVal;
   document.getElementById('meta-label').textContent = `${meta}% — Economizar ${fmt(metaVal)}`;
   document.getElementById('risk-left').textContent  = `Gasto: ${fmt(t.total)}`;
   document.getElementById('risk-right').textContent = `Limite: ${fmt(lim)}`;
-  document.getElementById('risk-fill').style.width  = Math.min(sal>0?t.total/sal*100:0,100)+'%';
-  document.getElementById('risk-marker').style.left = Math.min(100-meta,100)+'%';
+  document.getElementById('risk-fill').style.width  = Math.min(sal > 0 ? t.total / sal * 100 : 0, 100) + '%';
+  document.getElementById('risk-marker').style.left = Math.min(100 - meta, 100) + '%';
   const rt = document.getElementById('risk-text');
-  if(t.total>lim) { rt.textContent='⚠️ Meta ultrapassada!'; rt.className='risk-val v-red'; }
-  else if(t.total>lim*.8) { rt.textContent='⚡ Chegando no limite'; rt.className='risk-val v-orange'; }
-  else { rt.textContent='✅ Boa margem!'; rt.className='risk-val v-green'; }
+  if(t.total > lim)       { rt.textContent = '⚠️ Meta ultrapassada!';    rt.className = 'risk-val v-red'; }
+  else if(t.total > lim * .8) { rt.textContent = '⚡ Chegando no limite'; rt.className = 'risk-val v-orange'; }
+  else                    { rt.textContent = '✅ Boa margem!';           rt.className = 'risk-val v-green'; }
 
   // Alertas de categoria
   const catAlertsEl = document.getElementById('cat-alerts');
   catAlertsEl.innerHTML = '';
-  (d.categorias||[]).forEach(c => {
+  (d.categorias || []).forEach(c => {
     const v   = catTotal(c.id, d);
-    const orc = Number(c.orcamento||0);
+    const orc = Number(c.orcamento || 0);
     if(orc > 0 && v > 0) {
-      const pct = (v/orc*100).toFixed(0);
+      const pct = (v / orc * 100).toFixed(0);
       if(pct >= 70) {
-        catAlertsEl.innerHTML += `<span class="cat-alert-pill ${pct>=100?'danger':''}">${c.emoji} ${c.nome}: ${pct}% do orçamento</span>`;
+        catAlertsEl.innerHTML += `<span class="cat-alert-pill ${pct >= 100 ? 'danger' : ''}">${c.emoji} ${c.nome}: ${pct}% do orçamento</span>`;
       }
     }
   });
@@ -2391,19 +2425,23 @@ function renderAll() {
   document.getElementById('forecast-gasto').textContent = fmt(fc.projectedTotal);
   document.getElementById('forecast-saldo').textContent = fmt(fc.projectedSaldo);
   const fst = document.getElementById('forecast-status');
-  if(fc.projectedSaldo < 0) { fst.textContent='⚠️ Atenção!'; fst.style.color='var(--red)'; }
-  else { fst.textContent='✅ OK'; fst.style.color='var(--green)'; }
+  if(fc.projectedSaldo < 0) { fst.textContent = '⚠️ Atenção!'; fst.style.color = 'var(--red)'; }
+  else { fst.textContent = '✅ OK'; fst.style.color = 'var(--green)'; }
 
   // Insights
   renderInsights(d);
 
+  // Renderizar seções
   renderCartoes();
   renderDiarios();
   renderContas();
-  salvarConfigMes();
-  saveDB();
-}
 
+  // SALVAR LOCALMENTE PRIMEIRO (crítico)
+  saveDB();
+
+  // Firebase sync em background (não-crítico, não bloqueia)
+  salvarConfigMes().catch(() => {});
+}
 /* ==========================================================
    INSIGHTS
 ========================================================== */
@@ -3209,6 +3247,17 @@ function abrirModalCriarUsuario() {
   abrirModal('modal-criar-usuario');
 }
 
+// ✅ Função separada — controla as abas Entrar/Cadastrar
+function loginTab(tab) {
+  ['entrar','cadastrar'].forEach(t => {
+    document.getElementById('tab-'+t).classList.toggle('active', t===tab);
+    document.getElementById('form-'+t).classList.toggle('hidden', t!==tab);
+  });
+  showErr('login-err','');
+}
+
+// Depois vem checkLockout, iniciarLockout, waitFirebase, cadastrar, fazerLogin...
+// cada uma como função separada
 async function adminCriarUsuario() {
   const u      = document.getElementById('nu-user').value.trim().toLowerCase();
   const nome   = document.getElementById('nu-nome').value.trim();
@@ -3270,7 +3319,7 @@ function editarSalario() {
   saveDB(); salvarConfigMes(); renderAll(); notify('Salário atualizado!');
 }
 
-function editarMeta() {
+function editarMetaEconomia() {
   const d   = getMes(mesAtual);
   const nov = window.prompt('Meta de economia (% do salário, ex: 20):',d.meta);
   if(nov===null) return;
@@ -3284,17 +3333,24 @@ function editarMeta() {
    FIREBASE — SALVAR CONFIG
 ========================================================== */
 async function salvarConfigMes() {
-  if(!usuarioAtual||!window.dbFirebase) return;
-  const d = getMes(mesAtual);
+  // Não bloqueia NADA se Firebase não estiver disponível
+  if(!usuarioAtual || !window.firebaseReady || !window.dbFirebase) return;
   try {
     await window.fbSetDoc(
-      window.fbDoc(window.dbFirebase,'configMensal',`${usuarioAtual.username}_${mesAtual}`),
-      {username:usuarioAtual.username, mes:mesAtual, salario:d.salario, meta:d.meta, atualizado:window.fbServerTimestamp()},
-      {merge:true}
+      window.fbDoc(window.dbFirebase, 'configMensal', `${usuarioAtual.username}_${mesAtual}`),
+      {
+        username: usuarioAtual.username,
+        mes: mesAtual,
+        salario: getMes(mesAtual).salario,
+        meta: getMes(mesAtual).meta,
+        atualizado: window.fbServerTimestamp()
+      },
+      { merge: true }
     );
-  } catch(e) { console.warn('Firebase config save:',e); }
+  } catch(e) {
+    // Silencioso — dados já estão salvos no localStorage
+  }
 }
-
 /* ==========================================================
    MENU DO USUÁRIO / TROCAR SENHA
 ========================================================== */
@@ -3469,14 +3525,43 @@ document.addEventListener('click', e => {
 /* ==========================================================
    AUTO-LOGIN
 ========================================================== */
+/* ==========================================================
+   AUTO-LOGIN
+========================================================== */
 (async function() {
   const savedUser = localStorage.getItem(SESSION_KEY);
   if(!savedUser) return;
-  await waitFirebase();
+
+  const fbOk = await waitFirebase();
+  if(!fbOk || !window.dbFirebase) {
+    console.warn('Firebase indisponível no auto-login. Tentando modo offline...');
+    usuarioAtual = { username: savedUser, nome: savedUser, perfil: 'user' };
+    iniciarApp();
+    notify('⚠️ Modo offline — Firebase indisponível', 'warn');
+    return;
+  }
+
   try {
-    const snap = await window.fbGetDocs(window.fbQuery(window.fbCollection(window.dbFirebase,'usuarios'),window.fbWhere('username','==',savedUser)));
-    if(!snap.empty) { usuarioAtual=snap.docs[0].data(); iniciarApp(); }
-  } catch(e) { console.warn('Auto-login failed:',e); }
+    const snap = await window.fbGetDocs(
+      window.fbQuery(
+        window.fbCollection(window.dbFirebase, 'usuarios'),
+        window.fbWhere('username', '==', savedUser)
+      )
+    );
+    if(!snap.empty) {
+      usuarioAtual = snap.docs[0].data();
+      iniciarApp();
+    } else {
+      usuarioAtual = { username: savedUser, nome: savedUser, perfil: 'user' };
+      iniciarApp();
+      notify('⚠️ Sessão local restaurada', 'warn');
+    }
+  } catch(e) {
+    console.warn('Auto-login error:', e);
+    usuarioAtual = { username: savedUser, nome: savedUser, perfil: 'user' };
+    iniciarApp();
+    notify('⚠️ Modo offline — erro de conexão', 'warn');
+  }
 })();
 </script>
 </body>
