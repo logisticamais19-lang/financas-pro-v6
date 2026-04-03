@@ -1469,14 +1469,23 @@ async function sincronizarMesDoFirebase(){
       });
     });
 
-    // 🔹 Buscar Gastos Diários
-    const diariosSnap = await window.fbGetDocs(
-      window.fbQuery(
-        window.fbCollection(window.dbFirebase, "gastos_diarios"),
-        window.fbWhere("usuario", "==", usuarioAtual.username),
-        window.fbWhere("mes", "==", mesAtual)
-      )
-    );
+  // 🔹 Buscar Gastos Diários
+const diariosSnap = await window.fbGetDocs(
+  window.fbQuery(
+    window.fbCollection(window.dbFirebase, "gastos_diarios"),
+    window.fbWhere("usuario", "==", usuarioAtual.username),
+    window.fbWhere("mes", "==", mesAtual)
+  )
+);
+
+diariosSnap.forEach(docSnap => {
+  const data = docSnap.data();
+
+  d.diarios.push({
+    id: docSnap.id,
+    ...data
+  });
+});
 
   const data = docSnap.data();
 
