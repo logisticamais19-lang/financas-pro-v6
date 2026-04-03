@@ -1461,7 +1461,7 @@ async function sincronizarMesDoFirebase(){
     contasSnap.forEach(docSnap => {
       const data = docSnap.data();
       d.contas.push({
-        id: data.id,
+		id: docSnap.id,
         descricao: data.descricao,
         emoji: data.emoji,
         valor: data.valor,
