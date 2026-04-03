@@ -604,15 +604,57 @@ async function iniciarApp(){
 }
 function renderTopbar(){document.getElementById('user-nome').textContent=usuarioAtual.nome||usuarioAtual.username;document.getElementById('top-sub').textContent=usuarioAtual.perfil==='admin'?'👑 Administrador':'Dashboard pessoal';const av=document.getElementById('user-avatar');av.style.background=avatarColor(usuarioAtual.username);av.textContent=(usuarioAtual.nome||usuarioAtual.username)[0].toUpperCase();document.getElementById('page-title').textContent=`${MONTHS[parseInt(mesAtual.split('-')[1])-1]} ${mesAtual.split('-')[0]}`;const sel=document.getElementById('sel-ano');sel.innerHTML='';for(let y=today.getFullYear()-10;y<=today.getFullYear()+10;y++){const o=document.createElement('option');o.value=y;o.textContent=y;if(y===anoAtual)o.selected=true;sel.appendChild(o)}const months=document.getElementById('months');months.innerHTML='';MONTHS.forEach((m,i)=>{const b=document.createElement('button');b.className='month-btn'+(i===parseInt(mesAtual.split('-')[1])-1?' active':'');b.textContent=m.slice(0,3);b.onclick=()=>mudarMes(i);months.appendChild(b)});const calYear=document.getElementById('cal-year');calYear.innerHTML='';for(let y=today.getFullYear()-10;y<=today.getFullYear()+10;y++){const o=document.createElement('option');o.value=y;o.textContent=y;if(y===calAno)o.selected=true;calYear.appendChild(o)}const projYear=document.getElementById('proj-year');projYear.innerHTML='';for(let y=today.getFullYear()-10;y<=today.getFullYear()+10;y++){const o=document.createElement('option');o.value=y;o.textContent=y;if(y===calAno)o.selected=true;projYear.appendChild(o)}document.getElementById('tab-6').classList.toggle('hidden',usuarioAtual.perfil!=='admin')}
 function mudarAno(){anoAtual=parseInt(document.getElementById('sel-ano').value);mesAtual=mkKey(anoAtual,parseInt(mesAtual.split('-')[1])-1);renderTopbar();renderDashboard()}
-function mudarMes(i){mesAtual=mkKey(anoAtual,i);renderTopbar();renderDashboard()}
+async function mudarMes(i){
+  mesAtual = mkKey(anoAtual, i);
+  renderTopbar();
+  await sincronizarMesDoFirebase();  // ← ADICIONAR
+  renderDashboard();
+}
+
+async function mudarAno(){
+  anoAtual = parseInt(document.getElementById('sel-ano').value);
+  mesAtual = mkKey(anoAtual, parseInt(mesAtual.split('-')[1])-1);
+  renderTopbar();
+  await sincronizarMesDoFirebase();  // ← ADICIONAR
+  renderDashboard();
+}
 function openModal(id){document.getElementById(id).classList.add('open')}
 function fecharModal(id){document.getElementById(id).classList.remove('open')}
 function toast(msg,type='success'){const b=document.getElementById('notif');const d=document.createElement('div');d.className='notif-item '+type;d.textContent=msg;d.onclick=()=>d.remove();b.appendChild(d);setTimeout(()=>d.remove(),4000)}
 
 function abrirUserMenu(){document.getElementById('user-menu-avatar').style.background=avatarColor(usuarioAtual.username);document.getElementById('user-menu-avatar').textContent=(usuarioAtual.nome||usuarioAtual.username)[0].toUpperCase();document.getElementById('user-menu-name').textContent=usuarioAtual.nome||usuarioAtual.username;document.getElementById('user-menu-user').textContent='@'+usuarioAtual.username+(usuarioAtual.perfil==='admin'?' · admin':'');openModal('modal-user-menu')}
 function abrirTrocarSenha(){fecharModal('modal-user-menu');document.getElementById('ts-atual').value='';document.getElementById('ts-nova').value='';document.getElementById('ts-conf').value='';hideErr('ts-err');openModal('modal-trocar-senha')}
-function trocarSenha(){const atual=document.getElementById('ts-atual').value;const nova=document.getElementById('ts-nova').value;const conf=document.getElementById('ts-conf').value;if(hash(atual)!==usuarioAtual.senha)return showErr('ts-err','Senha atual incorreta.');if(!validarSenha(nova))return showErr('ts-err','Nova senha fraca.');if(nova!==conf)return showErr('ts-err','As senhas não conferem.');const users=getUsers();const idx=users.findIndex(x=>x.id===usuarioAtual.id);if(idx>=0){users[idx].senha=hash(nova);saveUsers(users);usuarioAtual=users[idx]}fecharModal('modal-trocar-senha');toast('✅ Senha alterada com sucesso!')}
+async function trocarSenha(){
+  const atual = document.getElementById('ts-atual').value;
+  const nova = document.getElementById('ts-nova').value;
+  const conf = document.getElementById('ts-conf').value;
 
+  if(hash(atual) !== usuarioAtual.senhaHash)
+    return showErr('ts-err','Senha atual incorreta.');
+  if(!validarSenha(nova))
+    return showErr('ts-err','Nova senha fraca.');
+  if(nova !== conf)
+    return showErr('ts-err','As senhas não conferem.');
+
+  // Buscar o doc ID do usuário no Firestore
+  const q = window.fbQuery(
+    window.fbCollection(window.dbFirebase, "usuarios"),
+    window.fbWhere("username", "==", usuarioAtual.username)
+  );
+  const snapshot = await window.fbGetDocs(q);
+
+  if(!snapshot.empty){
+    const docId = snapshot.docs[0].id;
+    await window.fbUpdateDoc(
+      window.fbDoc(window.dbFirebase, "usuarios", docId),
+      { senhaHash: hash(nova) }
+    );
+    usuarioAtual.senhaHash = hash(nova);
+  }
+
+  fecharModal('modal-trocar-senha');
+  toast('✅ Senha alterada com sucesso!');
+}
 function daysInMonth(y,m){return new Date(y,m+1,0).getDate()}
 function totalMonth(d){const cart=d.cartoes.reduce((a,c)=>a+(c.gastos||[]).reduce((s,g)=>s+Number(g.valor||0),0),0);const daily=(d.diarios||[]).reduce((a,g)=>a+Number(g.valor||0),0);const fixed=(d.contas||[]).reduce((a,c)=>a+(c.pago?Number(c.valor||0):0),0);return{cart,daily,fixed,total:cart+daily+fixed,saldo:Number(d.salario||0)-(cart+daily+fixed)}}
 function categoryTotal(catId,d){return (d.diarios||[]).filter(x=>x.catId===catId).reduce((a,x)=>a+Number(x.valor||0),0)}
@@ -1149,7 +1191,26 @@ async function deletarConta(id){
   }
 }
 
-function togglePago(id){const d=getMes(mesAtual);const c=d.contas.find(x=>x.id===id);if(!c)return;c.pago=!c.pago;saveDB();renderDashboard()}
+async function togglePago(id){
+  const d = getMes(mesAtual);
+  const c = d.contas.find(x => x.id === id);
+  if(!c) return;
+
+  c.pago = !c.pago;
+
+  try {
+    await window.fbUpdateDoc(
+      window.fbDoc(window.dbFirebase, "contas_fixas", String(id)),
+      { pago: c.pago }
+    );
+  } catch(e){
+    console.error("Erro ao atualizar pago:", e);
+    toast('Erro ao atualizar no Firebase.', 'danger');
+  }
+
+  saveDB();
+  renderDashboard();
+}
 
 function renderFixed(){
 
