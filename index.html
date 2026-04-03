@@ -1075,17 +1075,50 @@ async function salvarConta(){
     pago: false
   };
 
-  const editando = !!document.getElementById('mc-id').value;
+const editando = !!document.getElementById('mc-id').value;
 
-  if(editando){
-    d.contas = d.contas.map(x =>
-      x.id===id ? { ...x, ...conta, pago:x.pago } : x
+if(editando){
+
+  d.contas = d.contas.map(x =>
+    x.id===id ? { ...x, ...conta, pago:x.pago } : x
+  );
+
+  try{
+    await window.fbUpdateDoc(
+      window.fbDoc(window.dbFirebase, "contas_fixas", id),
+      {
+        descricao: desc,
+        emoji,
+        valor,
+        dia,
+        pago: conta.pago
+      }
     );
-  } else {
-    d.contas.push(conta);
+  }catch(e){
+    console.error("Erro ao atualizar conta:", e);
   }
 
-  saveDB();
+} else {
+
+  d.contas.push(conta);
+
+  try{
+    await window.fbAddDoc(
+      window.fbCollection(window.dbFirebase, "contas_fixas"),
+      {
+        usuario: usuarioAtual?.username,
+        mes: mesAtual,
+        ...conta,
+        criadoEm: window.fbServerTimestamp()
+      }
+    );
+  }catch(e){
+    console.error("Erro Firebase:", e);
+  }
+
+}
+
+saveDB();
 
   if(!editando){
     try{
