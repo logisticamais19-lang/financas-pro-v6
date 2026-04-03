@@ -1520,15 +1520,8 @@ async function sincronizarMesDoFirebase(){
     console.error("Erro ao sincronizar:", e);
   }
 }
-    saveDB();
 
-    console.log("✅ Sincronização concluída");
-
-  } catch(e){
-    console.error("Erro ao sincronizar:", e);
-  }
-}
-window.addEventListener('load', () => {
+  window.addEventListener('load', () => {
   init();
 });
 </script>
