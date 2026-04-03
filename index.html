@@ -1120,26 +1120,35 @@ async function salvarConta(){
 }
 
 async function deletarConta(id){
+
   if(!confirm('Excluir esta conta?')) return;
 
   const d = getMes(mesAtual);
 
   try{
-    // ✅ Apaga no Firebase
+
+    // ✅ Garantir que é string
+    const docId = String(id);
+
+    // ✅ Apagar no Firestore
     await window.fbDeleteDoc(
-      window.fbDoc(window.dbFirebase, "contas_fixas", id)
+      window.fbDoc(window.dbFirebase, "contas_fixas", docId)
     );
 
-    d.contas = d.contas.filter(x => x.id !== id);
+    // ✅ Remover local
+    d.contas = d.contas.filter(x => x.id !== docId);
+
     saveDB();
     renderDashboard();
-    toast('Conta removida.','warn');
+
+    toast('✅ Conta excluída do banco!');
 
   }catch(e){
     console.error("Erro ao deletar conta:", e);
     toast('Erro ao excluir no Firebase.','danger');
   }
 }
+
 function togglePago(id){const d=getMes(mesAtual);const c=d.contas.find(x=>x.id===id);if(!c)return;c.pago=!c.pago;saveDB();renderDashboard()}
 function deletarConta(id){if(!confirm('Excluir esta conta?'))return;const d=getMes(mesAtual);d.contas=d.contas.filter(x=>x.id!==id);saveDB();renderDashboard();toast('Conta removida.','warn')}
 function renderFixed(){
